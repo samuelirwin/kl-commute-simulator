@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Compliance Dashboard — MyCommute KL{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb navigation -->
+<div style="margin-bottom: 16px; font-size: 12px; color: var(--muted);">
+  <a href="{% url 'company:index' %}?company={{ company.code }}" style="color: var(--accent); text-decoration: none;">{{ company.name }}</a>
+  <span style="margin: 0 8px;">/</span>
+  <span style="color: var(--text);">Compliance Dashboard</span>
+</div>
+
+<!-- Compliance Overview -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x2705; Compliance <span>Overview</span></div>
+    <div style="font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace;">
+      All companies ranked by compliance score
+    </div>
+  </div>
+  <table class="company-table">
+    <thead>
+      <tr>
+        <th>Company</th>
+        <th>Sector</th>
+        <th>Staff</th>
+        <th>Compliance Score</th>
+        <th>Score Bar</th>
+        {% if results %}<th>WFH</th><th>Carpool</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in companies %}
+      <tr{% if c.code == company.code %} style="background: rgba(0,212,255,0.05); border-left: 3px solid var(--accent);"{% endif %}>
+        <td>
+          <div style="font-weight: 600; font-size: 12px;">
+            {{ c.name }}
+            {% if c.code == company.code %}
+            <span style="font-size: 9px; color: var(--accent); font-family: 'Space Mono', monospace; margin-left: 6px;">CURRENT</span>
+            {% endif %}
+          </div>
+          <div style="font-size: 10px; color: var(--muted);">{{ c.code }}</div>
+        </td>
+        <td style="font-size: 11px; color: var(--muted);">{{ c.sector }}</td>
+        <td style="font-family: 'Space Mono', monospace; font-size: 12px;">{{ c.total_staff|default:"—" }}</td>
+        <td>
+          <span style="
+            font-family: 'Space Mono', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            {% if c.compliance_score >= 80 %}color: var(--green);
+            {% elif c.compliance_score >= 60 %}color: var(--yellow);
+            {% elif c.compliance_score >= 40 %}color: var(--orange);
+            {% else %}color: var(--red);
+            {% endif %}
+          ">{{ c.compliance_score|floatformat:0 }}%</span>
+        </td>
+        <td style="min-width: 140px;">
+          <div class="compliance-bar">
+            <div class="compliance-fill" style="
+              width: {{ c.compliance_score|floatformat:0 }}%;
+              {% if c.compliance_score >= 80 %}background: var(--green);
+              {% elif c.compliance_score >= 60 %}background: var(--yellow);
+              {% elif c.compliance_score >= 40 %}background: var(--orange);
+              {% else %}background: var(--red);
+              {% endif %}
+            "></div>
+          </div>
+        </td>
+        {% if results %}
+        {% for r in results %}
+        {% if r.company.code == c.code %}
+        <td style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent3);">{{ r.wfh_count }}</td>
+        <td style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent4);">{{ r.carpool_count }}</td>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+      </tr>
+      {% empty %}
+      <tr><td colspan="{% if results %}7{% else %}5{% endif %}" class="empty-state">No companies found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Score Legend -->
+<div class="feature-panel">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F4D6; Score <span>Guide</span></div>
+  </div>
+  <div style="padding: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+    <div style="text-align: center; padding: 12px; border-radius: 8px; background: rgba(57,255,126,0.05); border: 1px solid rgba(57,255,126,0.2);">
+      <div style="font-size: 20px; font-weight: 800; color: var(--green);">80-100%</div>
+      <div style="font-size: 10px; color: var(--muted); text-transform: uppercase; margin-top: 4px;">Excellent</div>
+    </div>
+    <div style="text-align: center; padding: 12px; border-radius: 8px; background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.2);">
+      <div style="font-size: 20px; font-weight: 800; color: var(--yellow);">60-79%</div>
+      <div style="font-size: 10px; color: var(--muted); text-transform: uppercase; margin-top: 4px;">Good</div>
+    </div>
+    <div style="text-align: center; padding: 12px; border-radius: 8px; background: rgba(255,140,0,0.05); border: 1px solid rgba(255,140,0,0.2);">
+      <div style="font-size: 20px; font-weight: 800; color: var(--orange);">40-59%</div>
+      <div style="font-size: 10px; color: var(--muted); text-transform: uppercase; margin-top: 4px;">Needs Improvement</div>
+    </div>
+    <div style="text-align: center; padding: 12px; border-radius: 8px; background: rgba(255,68,68,0.05); border: 1px solid rgba(255,68,68,0.2);">
+      <div style="font-size: 20px; font-weight: 800; color: var(--red);">0-39%</div>
+      <div style="font-size: 10px; color: var(--muted); text-transform: uppercase; margin-top: 4px;">Non-Compliant</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

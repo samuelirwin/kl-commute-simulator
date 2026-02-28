@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Staff Portal — MyCommute KL{% endblock %}
+
+{% block content %}
+{% if staff_member %}
+
+<!-- Welcome Header -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div style="padding: 24px; display: flex; align-items: center; gap: 20px;">
+    <div style="
+      width: 56px; height: 56px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), #0066ff);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; flex-shrink: 0;
+    ">&#x1F464;</div>
+    <div style="flex: 1;">
+      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 4px;">
+        Welcome, {{ staff_member.name }}
+      </h2>
+      <div style="font-size: 12px; color: var(--muted);">
+        <span style="font-family: 'Space Mono', monospace; color: var(--accent);">{{ staff_member.employee_id }}</span>
+        <span style="margin: 0 8px;">|</span>
+        {{ staff_member.company.name }}
+        <span style="margin: 0 8px;">|</span>
+        {{ staff_member.department.name }}
+      </div>
+      <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+        Home Zone: {{ staff_member.home_zone.name }}
+        <span style="margin: 0 8px;">|</span>
+        Transport: {{ staff_member.get_primary_transport_display }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- This Week's Schedule -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F4C5; This Week's <span>Schedule</span></div>
+    <a href="{% url 'staff:schedule' %}?staff_id={{ staff_member.pk }}" class="btn" style="padding: 4px 12px; font-size: 11px;">View Full</a>
+  </div>
+  <div style="padding: 16px;">
+    {% if schedules %}
+    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+      {% for schedule in schedules %}
+      <div style="
+        text-align: center;
+        padding: 14px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        {% if schedule.location == 'WFH' %}
+        background: rgba(57,255,126,0.08);
+        border-color: rgba(57,255,126,0.25);
+        {% else %}
+        background: rgba(0,212,255,0.05);
+        border-color: rgba(0,212,255,0.2);
+        {% endif %}
+      ">
+        <div style="font-size: 10px; color: var(--muted); text-transform: uppercase; font-family: 'Space Mono', monospace; margin-bottom: 6px;">
+          {% if schedule.day_of_week == 0 %}Mon{% elif schedule.day_of_week == 1 %}Tue{% elif schedule.day_of_week == 2 %}Wed{% elif schedule.day_of_week == 3 %}Thu{% elif schedule.day_of_week == 4 %}Fri{% endif %}
+        </div>
+        {% if schedule.location == "WFH" %}
+        <div style="font-size: 18px; margin-bottom: 4px;">&#x1F3E0;</div>
+        <div style="font-size: 12px; font-weight: 700; color: var(--green);">WFH</div>
+        {% else %}
+        <div style="font-size: 18px; margin-bottom: 4px;">&#x1F3E2;</div>
+        <div style="font-size: 12px; font-weight: 700; color: var(--accent);">Office</div>
+        {% if schedule.assigned_start_time %}
+        <div style="font-size: 10px; font-family: 'Space Mono', monospace; color: var(--accent); margin-top: 4px;">
+          {{ schedule.assigned_start_time|time:"H:i" }}
+        </div>
+        {% endif %}
+        {% if schedule.departure_window %}
+        <div style="font-size: 9px; color: var(--muted); margin-top: 2px;">{{ schedule.departure_window }}</div>
+        {% endif %}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>No schedule available yet.</p>
+      <p style="font-size: 11px; margin-top: 4px;">Schedule will appear after a simulation run completes.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Carpool Info Summary -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F697; Carpool <span>Summary</span></div>
+    <a href="{% url 'staff:carpool' %}?staff_id={{ staff_member.pk }}" class="btn" style="padding: 4px 12px; font-size: 11px;">View Details</a>
+  </div>
+  <div style="padding: 16px;">
+    {% if carpool_membership %}
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <div style="
+        width: 48px; height: 48px; border-radius: 12px;
+        background: rgba(168,85,247,0.15);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 22px; flex-shrink: 0;
+      ">&#x1F697;</div>
+      <div>
+        <div style="font-weight: 600; font-size: 14px;">{{ carpool_membership.group.name }}</div>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+          {{ carpool_membership.group.route_description }}
+        </div>
+        <div style="margin-top: 6px; display: flex; gap: 12px;">
+          <span class="mode-badge" style="background: rgba(0,212,255,0.1); color: #00d4ff;">
+            {{ carpool_membership.get_role_display }}
+          </span>
+          <span style="font-size: 11px; font-family: 'Space Mono', monospace; color: var(--accent);">
+            Depart: {{ carpool_membership.group.departure_time|time:"H:i" }}
+          </span>
+          <span style="font-size: 11px; color: var(--muted);">
+            {{ carpool_membership.group.current_members }}/{{ carpool_membership.group.max_seats }} seats
+          </span>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 20px;">
+      <p>Not assigned to a carpool group.</p>
+      {% if staff_member.willing_to_carpool %}
+      <p style="font-size: 11px; color: var(--accent); margin-top: 4px;">You are marked as willing to carpool. A group will be assigned after the next simulation run.</p>
+      {% else %}
+      <p style="font-size: 11px; margin-top: 4px;">Contact your company admin to opt in to carpooling.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick Links -->
+<div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+  <a href="{% url 'staff:schedule' %}?staff_id={{ staff_member.pk }}" class="stat-card" style="text-decoration: none; transition: border-color 0.3s;">
+    <div style="font-size: 28px; margin-bottom: 8px;">&#x1F4C5;</div>
+    <div class="stat-label">My Schedule</div>
+    <div style="font-size: 11px; color: var(--accent); margin-top: 4px;">Weekly schedule details</div>
+  </a>
+  <a href="{% url 'staff:carpool' %}?staff_id={{ staff_member.pk }}" class="stat-card" style="text-decoration: none; transition: border-color 0.3s;">
+    <div style="font-size: 28px; margin-bottom: 8px;">&#x1F697;</div>
+    <div class="stat-label">My Carpool</div>
+    <div style="font-size: 11px; color: var(--accent); margin-top: 4px;">Carpool group details</div>
+  </a>
+  <a href="{% url 'staff:impact' %}?staff_id={{ staff_member.pk }}" class="stat-card" style="text-decoration: none; transition: border-color 0.3s;">
+    <div style="font-size: 28px; margin-bottom: 8px;">&#x1F331;</div>
+    <div class="stat-label">My Impact</div>
+    <div style="font-size: 11px; color: var(--accent); margin-top: 4px;">Environmental contribution</div>
+  </a>
+</div>
+
+{% else %}
+<!-- No staff member selected -->
+<div class="feature-panel" style="text-align: center; padding: 60px 40px;">
+  <div style="font-size: 48px; margin-bottom: 16px;">&#x1F464;</div>
+  <h2 style="margin-bottom: 12px; color: var(--accent);">No Staff Member Found</h2>
+  <p style="color: var(--muted); margin-bottom: 24px;">
+    Seed the database with staff data to use the Staff Portal.
+  </p>
+  <p style="color: var(--muted); font-family: 'Space Mono', monospace; font-size: 12px;">
+    Run: <span style="color: var(--accent);">python manage.py seed_data</span>
+  </p>
+</div>
+{% endif %}
+{% endblock %}

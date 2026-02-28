@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Schedule — MyCommute KL{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb navigation -->
+<div style="margin-bottom: 16px; font-size: 12px; color: var(--muted);">
+  <a href="{% url 'staff:index' %}?staff_id={{ staff_member.pk }}" style="color: var(--accent); text-decoration: none;">Staff Portal</a>
+  <span style="margin: 0 8px;">/</span>
+  <span style="color: var(--text);">My Schedule</span>
+</div>
+
+<!-- Staff Info Summary -->
+<div style="margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
+  <div style="font-weight: 700; font-size: 16px;">{{ staff_member.name }}</div>
+  <span style="font-size: 11px; font-family: 'Space Mono', monospace; color: var(--accent);">{{ staff_member.employee_id }}</span>
+  <span style="font-size: 11px; color: var(--muted);">{{ staff_member.company.name }}</span>
+</div>
+
+<!-- Schedule Grid -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F4C5; Weekly <span>Schedule</span></div>
+    <div style="display: flex; gap: 12px; font-size: 11px;">
+      <span style="display: flex; align-items: center; gap: 4px;">
+        <span style="width: 10px; height: 10px; border-radius: 3px; background: rgba(0,212,255,0.15); border: 1px solid rgba(0,212,255,0.3);"></span>
+        <span style="color: var(--muted);">Office</span>
+      </span>
+      <span style="display: flex; align-items: center; gap: 4px;">
+        <span style="width: 10px; height: 10px; border-radius: 3px; background: rgba(57,255,126,0.15); border: 1px solid rgba(57,255,126,0.3);"></span>
+        <span style="color: var(--muted);">WFH</span>
+      </span>
+    </div>
+  </div>
+
+  {% if schedules %}
+  <div style="padding: 20px;">
+    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;">
+      {% for schedule in schedules %}
+      <div style="
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+        {% if schedule.location == 'WFH' %}
+        background: rgba(57,255,126,0.05);
+        border-color: rgba(57,255,126,0.2);
+        {% else %}
+        background: rgba(0,212,255,0.03);
+        border-color: rgba(0,212,255,0.15);
+        {% endif %}
+      ">
+        <!-- Day header -->
+        <div style="
+          padding: 10px;
+          text-align: center;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          font-family: 'Space Mono', monospace;
+          border-bottom: 1px solid var(--border);
+          {% if schedule.location == 'WFH' %}
+          background: rgba(57,255,126,0.1);
+          color: var(--green);
+          {% else %}
+          background: rgba(0,212,255,0.05);
+          color: var(--accent);
+          {% endif %}
+        ">
+          {% if schedule.day_of_week == 0 %}Monday{% elif schedule.day_of_week == 1 %}Tuesday{% elif schedule.day_of_week == 2 %}Wednesday{% elif schedule.day_of_week == 3 %}Thursday{% elif schedule.day_of_week == 4 %}Friday{% endif %}
+        </div>
+
+        <!-- Day content -->
+        <div style="padding: 16px; text-align: center;">
+          {% if schedule.location == "WFH" %}
+          <div style="font-size: 32px; margin-bottom: 8px;">&#x1F3E0;</div>
+          <div style="font-size: 14px; font-weight: 700; color: var(--green); margin-bottom: 4px;">Work From Home</div>
+          <div style="font-size: 10px; color: var(--muted);">No commute needed</div>
+          {% else %}
+          <div style="font-size: 32px; margin-bottom: 8px;">&#x1F3E2;</div>
+          <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">Office</div>
+
+          {% if schedule.assigned_start_time %}
+          <div style="margin-bottom: 8px;">
+            <div style="font-size: 9px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px;">Start Time</div>
+            <div style="font-size: 18px; font-weight: 700; font-family: 'Space Mono', monospace; color: var(--accent);">
+              {{ schedule.assigned_start_time|time:"H:i" }}
+            </div>
+          </div>
+          {% endif %}
+
+          {% if schedule.departure_window %}
+          <div style="margin-bottom: 8px;">
+            <div style="font-size: 9px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px;">Departure Window</div>
+            <div style="font-size: 12px; font-family: 'Space Mono', monospace; color: var(--text);">
+              {{ schedule.departure_window }}
+            </div>
+          </div>
+          {% endif %}
+
+          {% if schedule.estimated_commute_min > 0 %}
+          <div>
+            <div style="font-size: 9px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px;">Est. Commute</div>
+            <div style="font-size: 14px; font-weight: 700; font-family: 'Space Mono', monospace; color: var(--accent4);">
+              {{ schedule.estimated_commute_min|floatformat:0 }} min
+            </div>
+          </div>
+          {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <p>No schedule data available.</p>
+    <p style="font-size: 11px; margin-top: 4px;">Your schedule will appear after a simulation run completes.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Back to portal -->
+<div>
+  <a href="{% url 'staff:index' %}?staff_id={{ staff_member.pk }}" class="btn">&#x2190; Back to Portal</a>
+</div>
+{% endblock %}

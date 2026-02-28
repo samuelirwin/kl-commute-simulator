@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ action }} Staff — {{ company.name }} — MyCommute KL{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb navigation -->
+<div style="margin-bottom: 16px; font-size: 12px; color: var(--muted);">
+  <a href="{% url 'company:index' %}?company={{ company.code }}" style="color: var(--accent); text-decoration: none;">{{ company.name }}</a>
+  <span style="margin: 0 8px;">/</span>
+  <a href="{% url 'company:staff_list' %}?company={{ company.code }}" style="color: var(--accent); text-decoration: none;">Staff List</a>
+  <span style="margin: 0 8px;">/</span>
+  <span style="color: var(--text);">{{ action }} Staff{% if staff %}: {{ staff.name }}{% endif %}</span>
+</div>
+
+<!-- Staff Form Panel -->
+<div class="form-panel">
+  <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 20px; color: var(--accent); font-family: 'Space Mono', monospace; text-transform: uppercase;">
+    {{ action }} Staff Member
+  </h3>
+
+  {% if form.non_field_errors %}
+  <div class="form-error visible" style="margin-bottom: 16px; padding: 10px; background: rgba(255,68,68,0.1); border-radius: 8px;">
+    {% for error in form.non_field_errors %}
+    <div>{{ error }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="post" id="staffForm" novalidate>
+    {% csrf_token %}
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_employee_id">Employee ID</label>
+        {{ form.employee_id }}
+        <div class="form-error{% if form.employee_id.errors %} visible{% endif %}">
+          {% if form.employee_id.errors %}{{ form.employee_id.errors.0 }}{% endif %}
+        </div>
+        {% if form.employee_id.help_text %}
+        <div class="helptext">{{ form.employee_id.help_text }}</div>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_name">Full Name</label>
+        {{ form.name }}
+        <div class="form-error{% if form.name.errors %} visible{% endif %}">
+          {% if form.name.errors %}{{ form.name.errors.0 }}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_department">Department</label>
+        {{ form.department }}
+        <div class="form-error{% if form.department.errors %} visible{% endif %}">
+          {% if form.department.errors %}{{ form.department.errors.0 }}{% endif %}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_home_zone">Home Zone</label>
+        {{ form.home_zone }}
+        <div class="form-error{% if form.home_zone.errors %} visible{% endif %}">
+          {% if form.home_zone.errors %}{{ form.home_zone.errors.0 }}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_primary_transport">Primary Transport</label>
+        {{ form.primary_transport }}
+        <div class="form-error{% if form.primary_transport.errors %} visible{% endif %}">
+          {% if form.primary_transport.errors %}{{ form.primary_transport.errors.0 }}{% endif %}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_carpool_seats">Carpool Seats Offered</label>
+        {{ form.carpool_seats }}
+        <div class="form-error{% if form.carpool_seats.errors %} visible{% endif %}">
+          {% if form.carpool_seats.errors %}{{ form.carpool_seats.errors.0 }}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 20px; padding: 16px; background: var(--surface2); border-radius: 8px; border: 1px solid var(--border);">
+      <div class="form-check">
+        {{ form.has_vehicle }}
+        <label for="id_has_vehicle">Has Vehicle</label>
+      </div>
+      <div class="form-check">
+        {{ form.willing_to_carpool }}
+        <label for="id_willing_to_carpool">Willing to Carpool</label>
+        {% if form.willing_to_carpool.errors %}
+        <div class="form-error visible" style="margin-left: 8px;">{{ form.willing_to_carpool.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="form-check">
+        {{ form.can_wfh }}
+        <label for="id_can_wfh">Can Work From Home</label>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 12px;">
+      <button type="submit" class="btn primary">
+        {% if action == "Edit" %}Save Changes{% else %}Add Staff{% endif %}
+      </button>
+      <a href="{% url 'company:staff_list' %}?company={{ company.code }}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/form-validation.js' %}"></script>
+<script>
+  // Initialize client-side form validation on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    FormValidation.init('#staffForm');
+  });
+</script>
+{% endblock %}

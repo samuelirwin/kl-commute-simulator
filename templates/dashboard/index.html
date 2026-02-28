@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Government Dashboard — MyCommute KL{% endblock %}
+
+{% block header_controls %}
+{% if run %}
+<div class="sim-time" id="simTime">07:00 AM</div>
+<div class="live-badge">
+  <div class="live-dot"></div>
+  LIVE SIM
+</div>
+<div class="sim-controls">
+  <button class="btn" id="playBtn" onclick="Simulation.togglePlay()">&#x23F8; Pause</button>
+  <button class="btn danger" onclick="Simulation.resetSim()">&#x21BB; Reset</button>
+  <button class="btn" id="toggleFormBtn" onclick="toggleSimForm()">&#x2699; Parameters</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if run %}
+
+<!-- SIMULATION PARAMETER FORM (collapsed by default) -->
+<div id="simFormPanel" class="sim-form-panel" style="display:none;">
+  <h3>Simulation Parameters</h3>
+  <form id="simParamForm" method="post">
+    {% csrf_token %}
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_name">Run Name</label>
+        {{ form.name }}
+        {% if form.name.errors %}<div class="form-error visible">{{ form.name.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_wfh_max_days">Max WFH Days/Week</label>
+        {{ form.wfh_max_days }}
+        {% if form.wfh_max_days.errors %}<div class="form-error visible">{{ form.wfh_max_days.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_stagger_window_start">Stagger Start</label>
+        {{ form.stagger_window_start }}
+        {% if form.stagger_window_start.errors %}<div class="form-error visible">{{ form.stagger_window_start.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_stagger_window_end">Stagger End</label>
+        {{ form.stagger_window_end }}
+        {% if form.stagger_window_end.errors %}<div class="form-error visible">{{ form.stagger_window_end.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_wfh_sector_cap_pct">WFH Sector Cap (%)</label>
+        {{ form.wfh_sector_cap_pct }}
+        {% if form.wfh_sector_cap_pct.errors %}<div class="form-error visible">{{ form.wfh_sector_cap_pct.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_carpool_max_detour_km">Carpool Max Detour (km)</label>
+        {{ form.carpool_max_detour_km }}
+        {% if form.carpool_max_detour_km.errors %}<div class="form-error visible">{{ form.carpool_max_detour_km.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_transit_frequency_boost_pct">Transit Boost (%)</label>
+        {{ form.transit_frequency_boost_pct }}
+        {% if form.transit_frequency_boost_pct.errors %}<div class="form-error visible">{{ form.transit_frequency_boost_pct.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group" style="padding-top: 16px;">
+        <!-- Spacer for alignment -->
+      </div>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <div class="form-check">
+        {{ form.enable_stagger }}
+        <label for="id_enable_stagger">Enable Staggered Hours</label>
+      </div>
+      <div class="form-check">
+        {{ form.enable_wfh }}
+        <label for="id_enable_wfh">Enable WFH Rotation</label>
+      </div>
+      <div class="form-check">
+        {{ form.enable_carpool }}
+        <label for="id_enable_carpool">Enable Carpooling</label>
+      </div>
+      <div class="form-check">
+        {{ form.enable_transit_boost }}
+        <label for="id_enable_transit_boost">Enable Transit Frequency Boost</label>
+      </div>
+    </div>
+    {% if form.non_field_errors %}
+    <div class="form-error visible" style="margin-bottom: 12px;">{{ form.non_field_errors.0 }}</div>
+    {% endif %}
+    <div style="display:flex; gap:8px;">
+      <button type="submit" class="btn primary" id="runSimBtn">Run Simulation</button>
+      <button type="button" class="btn" onclick="toggleSimForm()">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<!-- TICKER BAR -->
+<div class="ticker-bar">
+  <div class="ticker-label">Live Feed</div>
+  <div class="ticker-divider"></div>
+  <div class="ticker-scroll">
+    <div class="ticker-inner">
+      <div class="ticker-msg"><span class="hi">MyCommute Active</span> — Staggered hours reducing <span class="accent">peak congestion</span> across KL corridors</div>
+      <div class="ticker-msg"><span class="green">{{ run.total_wfh_today|default:"0" }} staff</span> working from home today — fewer vehicles on roads</div>
+      <div class="ticker-msg">{{ run.total_carpool_groups|default:"0" }} <span class="accent">carpool groups</span> matched — reducing single-occupancy trips</div>
+      <div class="ticker-msg">CO2 savings: <span class="green">{{ run.co2_saved_tonnes|default:"0" }} tonnes</span> this cycle</div>
+      <div class="ticker-msg"><span class="hi">MyCommute Active</span> — Staggered hours reducing <span class="accent">peak congestion</span> across KL corridors</div>
+      <div class="ticker-msg"><span class="green">{{ run.total_wfh_today|default:"0" }} staff</span> working from home today — fewer vehicles on roads</div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENARIO TOGGLE -->
+<div class="scenario-bar">
+  <div class="scenario-tab before active" id="tab-before" onclick="Simulation.setScenario('before')">
+    &#x26A0; Before — Status Quo (All 8AM, No Coordination)
+  </div>
+  <div class="scenario-tab after" id="tab-after" onclick="Simulation.setScenario('after')">
+    &#x2705; After — MyCommute Active (Stagger + WFH + Carpool + Transit)
+  </div>
+</div>
+
+<!-- MAIN GRID: Map + Right Panel -->
+<div class="main-grid">
+  <!-- Left: Map Panel -->
+  <div class="map-panel">
+    <div class="panel-header">
+      <div class="panel-title">&#x1F5FA; Klang Valley <span>Traffic Map</span></div>
+      <div class="panel-title" id="congestionLevel" style="font-size:11px;">CONGESTION: <span style="color:var(--red)">LOADING...</span></div>
+    </div>
+    <canvas id="mapCanvas"></canvas>
+    <div class="map-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Free Flow</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>Moderate</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>Heavy</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Critical</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div>Carpool Hub</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Zone</div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card" id="kpi-congestion" style="--card-color: var(--red);">
+        <div class="kpi-label">Peak Congestion</div>
+        <div class="kpi-value" id="val-congestion">—</div>
+        <div class="kpi-sub">Volume / Capacity ratio</div>
+        <div class="kpi-delta" id="delta-congestion">Loading...</div>
+      </div>
+      <div class="kpi-card" id="kpi-time" style="--card-color: var(--accent4);">
+        <div class="kpi-label">Avg Commute Time</div>
+        <div class="kpi-value" id="val-time">—</div>
+        <div class="kpi-sub">Door to desk</div>
+        <div class="kpi-delta" id="delta-time">Loading...</div>
+      </div>
+      <div class="kpi-card" id="kpi-vehicles" style="--card-color: var(--accent3);">
+        <div class="kpi-label">Peak Vehicles</div>
+        <div class="kpi-value" id="val-vehicles">—</div>
+        <div class="kpi-sub">On road simultaneously</div>
+        <div class="kpi-delta" id="delta-vehicles">Loading...</div>
+      </div>
+      <div class="kpi-card" id="kpi-co2" style="--card-color: var(--accent);">
+        <div class="kpi-label">CO2 Saved</div>
+        <div class="kpi-value" id="val-co2">—</div>
+        <div class="kpi-sub">Carbon reduction</div>
+        <div class="kpi-delta" id="delta-co2">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Time Chart -->
+    <div class="chart-panel">
+      <div class="panel-title" style="margin-bottom:10px;">&#x1F4C8; Hourly Traffic Volume</div>
+      <canvas id="timeChart"></canvas>
+    </div>
+
+    <!-- Impact Bars -->
+    <div class="chart-panel">
+      <div class="panel-title" style="margin-bottom:10px;">&#x1F4CA; Measure Impact Breakdown</div>
+      <div id="impact-bars"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM GRID: 4-column panels -->
+<div class="bottom-grid">
+
+  <!-- Company Table -->
+  <div class="feature-panel">
+    <div class="panel-header">
+      <div class="panel-title">&#x1F3E2; Company <span>Load</span></div>
+    </div>
+    <table class="company-table">
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Staff</th>
+          <th>Start</th>
+          <th>Load</th>
+        </tr>
+      </thead>
+      <tbody id="companyTbody">
+        <tr><td colspan="4" class="empty-state">Loading data...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Stagger Chart -->
+  <div class="feature-panel">
+    <div class="panel-header">
+      <div class="panel-title">&#x23F0; Stagger <span>Distribution</span></div>
+    </div>
+    <div style="padding: 8px 14px;" id="staggerPanel">
+      <div class="empty-state">Loading stagger data...</div>
+    </div>
+  </div>
+
+  <!-- Carpool Groups -->
+  <div class="feature-panel">
+    <div class="panel-header">
+      <div class="panel-title">&#x1F697; Carpool <span>Groups</span></div>
+    </div>
+    <div class="carpool-list" id="carpoolList">
+      <div class="empty-state">Loading carpool data...</div>
+    </div>
+  </div>
+
+  <!-- WFH Calendar + Transit -->
+  <div class="feature-panel">
+    <div class="panel-header">
+      <div class="panel-title">&#x1F3E0; WFH <span>& Transit</span></div>
+    </div>
+    <div class="wfh-calendar" id="wfhCalendar">
+      <div class="empty-state">Loading WFH data...</div>
+    </div>
+    <div style="border-top: 1px solid var(--border); margin-top: 8px;">
+      <div class="panel-header">
+        <div class="panel-title">&#x1F687; Transit <span>Load</span></div>
+      </div>
+      <div class="transit-list" id="transitList">
+        <div class="empty-state">Loading transit data...</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Run selector for past simulations -->
+{% if runs %}
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F4CB; Simulation <span>Runs</span></div>
+  </div>
+  <table class="company-table">
+    <thead>
+      <tr>
+        <th>Run</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in runs %}
+      <tr{% if r.id == run.id %} style="background: rgba(0,212,255,0.05);"{% endif %}>
+        <td style="font-weight: 600;">{{ r.name }}</td>
+        <td>
+          <span class="mode-badge" style="{% if r.status == 'CMP' %}background:rgba(57,255,126,0.1);color:#39ff7e{% elif r.status == 'ERR' %}background:rgba(255,68,68,0.1);color:#ff4444{% else %}background:rgba(255,209,102,0.1);color:#ffd166{% endif %}">
+            {{ r.get_status_display }}
+          </span>
+        </td>
+        <td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);">{{ r.created_at|date:"d M Y H:i" }}</td>
+        <td>
+          {% if r.status == 'CMP' %}
+          <a href="{% url 'dashboard:run_detail' r.id %}" class="btn" style="padding:4px 10px;font-size:11px;">View</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% else %}
+<!-- No simulation run — prompt to seed data -->
+<div class="feature-panel" style="text-align: center; padding: 60px 40px;">
+  <div style="font-size: 48px; margin-bottom: 16px;">&#x1F6A6;</div>
+  <h2 style="margin-bottom: 12px; color: var(--accent);">No Simulation Data Available</h2>
+  <p style="color: var(--muted); margin-bottom: 24px; max-width: 500px; margin-left: auto; margin-right: auto;">
+    Seed the database with companies, staff, zones, and corridors first, then run a simulation
+    to see the dashboard come alive with traffic data, KPIs, and coordination insights.
+  </p>
+  <p style="color: var(--muted); font-family: 'Space Mono', monospace; font-size: 12px; margin-bottom: 16px;">
+    Run: <span style="color: var(--accent);">python manage.py seed_data</span>
+  </p>
+  <div style="display: flex; gap: 12px; justify-content: center;">
+    <a href="{% url 'company:index' %}" class="btn">&#x1F3E2; Company Admin</a>
+    <a href="{% url 'staff:index' %}" class="btn">&#x1F464; Staff Portal</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/map.js' %}"></script>
+<script src="{% static 'js/charts.js' %}"></script>
+<script src="{% static 'js/simulation.js' %}"></script>
+<script>
+// Toggle simulation parameter form panel
+function toggleSimForm() {
+  var panel = document.getElementById('simFormPanel');
+  if (panel) {
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+// Handle simulation form AJAX submit
+(function() {
+  var form = document.getElementById('simParamForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('runSimBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Running...';
+      }
+      var formData = new FormData(form);
+      Simulation.runSimulation(formData);
+    });
+  }
+})();
+
+{% if run %}
+// Initialize the simulation dashboard with the current run
+Simulation.init({{ run.id }});
+{% endif %}
+</script>
+{% endblock %}

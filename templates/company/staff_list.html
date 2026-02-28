@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Staff List — {{ company.name }} — MyCommute KL{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb navigation -->
+<div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+  <div style="font-size: 12px; color: var(--muted);">
+    <a href="{% url 'company:index' %}?company={{ company.code }}" style="color: var(--accent); text-decoration: none;">{{ company.name }}</a>
+    <span style="margin: 0 8px;">/</span>
+    <span style="color: var(--text);">Staff List</span>
+  </div>
+  <a href="{% url 'company:staff_add' %}?company={{ company.code }}" class="btn primary">+ Add Staff</a>
+</div>
+
+<!-- Staff Table -->
+<div class="feature-panel">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F465; Staff <span>Members</span></div>
+    <div style="font-size: 12px; color: var(--muted); font-family: 'Space Mono', monospace;">
+      {{ staff.count }} total
+    </div>
+  </div>
+  <table class="company-table">
+    <thead>
+      <tr>
+        <th>Employee ID</th>
+        <th>Name</th>
+        <th>Department</th>
+        <th>Home Zone</th>
+        <th>Transport</th>
+        <th>WFH</th>
+        <th>Carpool</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in staff %}
+      <tr>
+        <td style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent);">
+          {{ s.employee_id }}
+        </td>
+        <td style="font-weight: 600;">{{ s.name }}</td>
+        <td style="font-size: 11px; color: var(--muted);">{{ s.department.name }}</td>
+        <td style="font-size: 11px;">{{ s.home_zone.name }}</td>
+        <td>
+          <span class="mode-badge" style="
+            {% if s.primary_transport == 'CAR' %}background: rgba(0,212,255,0.1); color: #00d4ff;
+            {% elif s.primary_transport == 'PUB' %}background: rgba(57,255,126,0.1); color: #39ff7e;
+            {% elif s.primary_transport == 'MCY' %}background: rgba(255,209,102,0.1); color: #ffd166;
+            {% elif s.primary_transport == 'EHL' %}background: rgba(168,85,247,0.1); color: #a855f7;
+            {% elif s.primary_transport == 'CPL' %}background: rgba(255,107,53,0.1); color: #ff6b35;
+            {% endif %}
+          ">{{ s.get_primary_transport_display }}</span>
+        </td>
+        <td>
+          {% if s.can_wfh %}
+          <span style="color: var(--green); font-size: 11px; font-weight: 700;">Yes</span>
+          {% else %}
+          <span style="color: var(--muted); font-size: 11px;">No</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if s.willing_to_carpool %}
+          <span style="color: var(--accent3); font-size: 11px; font-weight: 700;">
+            Yes{% if s.carpool_seats > 0 %} ({{ s.carpool_seats }} seats){% endif %}
+          </span>
+          {% else %}
+          <span style="color: var(--muted); font-size: 11px;">No</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{% url 'company:staff_edit' s.pk %}?company={{ company.code }}" class="btn" style="padding: 4px 10px; font-size: 11px;">Edit</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="8" class="empty-state">
+          No staff members found. <a href="{% url 'company:staff_add' %}?company={{ company.code }}" style="color: var(--accent);">Add one now</a>.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

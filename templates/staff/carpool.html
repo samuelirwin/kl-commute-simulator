@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Carpool — MyCommute KL{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb navigation -->
+<div style="margin-bottom: 16px; font-size: 12px; color: var(--muted);">
+  <a href="{% url 'staff:index' %}?staff_id={{ staff_member.pk }}" style="color: var(--accent); text-decoration: none;">Staff Portal</a>
+  <span style="margin: 0 8px;">/</span>
+  <span style="color: var(--text);">My Carpool</span>
+</div>
+
+{% if membership %}
+<!-- Carpool Group Details -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F697; Carpool <span>Group</span></div>
+    <span class="mode-badge" style="background: rgba(0,212,255,0.1); color: #00d4ff;">
+      {{ membership.get_role_display }}
+    </span>
+  </div>
+  <div style="padding: 20px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+      <!-- Group Info -->
+      <div>
+        <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">{{ membership.group.name }}</h3>
+        <table class="company-table">
+          <tbody>
+            <tr>
+              <td style="color: var(--muted); width: 130px;">Route</td>
+              <td>{{ membership.group.route_description|default:"Not specified" }}</td>
+            </tr>
+            <tr>
+              <td style="color: var(--muted);">Departure Time</td>
+              <td style="font-family: 'Space Mono', monospace; color: var(--accent); font-size: 16px; font-weight: 700;">
+                {{ membership.group.departure_time|time:"H:i" }}
+              </td>
+            </tr>
+            <tr>
+              <td style="color: var(--muted);">Meeting Hub</td>
+              <td>
+                {% if membership.group.hub %}
+                {{ membership.group.hub.name }} ({{ membership.group.hub.zone.name }})
+                {% else %}
+                <span style="color: var(--muted);">Not assigned</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td style="color: var(--muted);">Capacity</td>
+              <td>
+                <span style="font-family: 'Space Mono', monospace; color: var(--accent3);">
+                  {{ membership.group.current_members }} / {{ membership.group.max_seats }}
+                </span>
+                seats filled
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Quick Stats -->
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="stat-card" style="margin-bottom: 0;">
+          <div class="stat-value" style="color: var(--accent); font-size: 24px;">{{ membership.group.departure_time|time:"H:i" }}</div>
+          <div class="stat-label">Departure</div>
+        </div>
+        <div class="stat-card" style="margin-bottom: 0;">
+          <div class="stat-value" style="color: var(--accent3); font-size: 24px;">{{ membership.group.current_members }}</div>
+          <div class="stat-label">Members</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Group Members -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F465; Group <span>Members</span></div>
+  </div>
+  <table class="company-table">
+    <thead>
+      <tr>
+        <th>Member</th>
+        <th>Employee ID</th>
+        <th>Home Zone</th>
+        <th>Role</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in group_members %}
+      <tr{% if m.staff.pk == staff_member.pk %} style="background: rgba(0,212,255,0.05);"{% endif %}>
+        <td>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="
+              width: 32px; height: 32px; border-radius: 8px;
+              display: flex; align-items: center; justify-content: center;
+              font-size: 14px; flex-shrink: 0;
+              {% if m.role == 'DRV' %}
+              background: rgba(0,212,255,0.15); color: var(--accent);
+              {% else %}
+              background: rgba(57,255,126,0.15); color: var(--green);
+              {% endif %}
+            ">{% if m.role == "DRV" %}&#x1F698;{% else %}&#x1F464;{% endif %}</div>
+            <div>
+              <div style="font-weight: 600; font-size: 12px;">
+                {{ m.staff.name }}
+                {% if m.staff.pk == staff_member.pk %}
+                <span style="font-size: 9px; color: var(--accent); font-family: 'Space Mono', monospace;">(You)</span>
+                {% endif %}
+              </div>
+              <div style="font-size: 10px; color: var(--muted);">{{ m.staff.company.name }}</div>
+            </div>
+          </div>
+        </td>
+        <td style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent);">
+          {{ m.staff.employee_id }}
+        </td>
+        <td style="font-size: 11px;">{{ m.staff.home_zone.name }}</td>
+        <td>
+          <span class="mode-badge" style="
+            {% if m.role == 'DRV' %}
+            background: rgba(0,212,255,0.1); color: #00d4ff;
+            {% else %}
+            background: rgba(57,255,126,0.1); color: #39ff7e;
+            {% endif %}
+          ">{{ m.get_role_display }}</span>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="empty-state">No members in this group.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<!-- No carpool membership -->
+<div class="feature-panel" style="text-align: center; padding: 60px 40px;">
+  <div style="font-size: 48px; margin-bottom: 16px;">&#x1F697;</div>
+  <h2 style="margin-bottom: 12px; color: var(--accent);">No Carpool Group Assigned</h2>
+  <p style="color: var(--muted); margin-bottom: 16px; max-width: 400px; margin-left: auto; margin-right: auto;">
+    {% if staff_member.willing_to_carpool %}
+    You are marked as willing to carpool. A group will be matched for you after the next simulation run.
+    {% else %}
+    You are not currently opted in to carpooling. Contact your company admin if you would like to join a carpool group.
+    {% endif %}
+  </p>
+  <div style="display: flex; gap: 12px; justify-content: center; align-items: center;">
+    {% if staff_member.has_vehicle %}
+    <span class="mode-badge" style="background: rgba(57,255,126,0.1); color: #39ff7e;">Has Vehicle</span>
+    {% endif %}
+    {% if staff_member.willing_to_carpool %}
+    <span class="mode-badge" style="background: rgba(0,212,255,0.1); color: #00d4ff;">Willing to Carpool</span>
+    {% endif %}
+    {% if staff_member.carpool_seats > 0 %}
+    <span class="mode-badge" style="background: rgba(255,209,102,0.1); color: #ffd166;">{{ staff_member.carpool_seats }} Seats Offered</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Back to portal -->
+<div style="margin-top: 20px;">
+  <a href="{% url 'staff:index' %}?staff_id={{ staff_member.pk }}" class="btn">&#x2190; Back to Portal</a>
+</div>
+{% endblock %}

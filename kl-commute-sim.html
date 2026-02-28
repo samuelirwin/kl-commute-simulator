@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyCommute — KL Smart Commute Coordination System</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060a12;
+  --surface: #0d1420;
+  --surface2: #131c2e;
+  --border: #1e2d45;
+  --accent: #00d4ff;
+  --accent2: #ff6b35;
+  --accent3: #39ff7e;
+  --accent4: #ffd166;
+  --text: #e8f0fe;
+  --muted: #5a7a9e;
+  --red: #ff4444;
+  --orange: #ff8c00;
+  --yellow: #ffd700;
+  --green: #39ff7e;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Sora', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Animated background grid */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container { position: relative; z-index: 1; max-width: 1600px; margin: 0 auto; padding: 20px; }
+
+/* HEADER */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: rgba(13,20,32,0.9);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  backdrop-filter: blur(20px);
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-icon {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, var(--accent), #0066ff);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.logo-text { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+.logo-text span { color: var(--accent); }
+.logo-sub { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(57,255,126,0.1);
+  border: 1px solid rgba(57,255,126,0.3);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-family: 'Space Mono', monospace;
+  color: var(--green);
+}
+.live-dot {
+  width: 8px; height: 8px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse 1.5s ease infinite;
+}
+@keyframes pulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.5; transform:scale(0.8); } }
+
+.sim-controls {
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: 'Sora', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+.btn.primary:hover { background: #00b8d9; }
+.btn.danger { border-color: var(--red); color: var(--red); }
+
+/* SCENARIO TOGGLE */
+.scenario-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+.scenario-tab {
+  flex: 1;
+  text-align: center;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.3s;
+  color: var(--muted);
+}
+.scenario-tab.active { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.scenario-tab.before.active { color: var(--red); border-color: rgba(255,68,68,0.3); }
+.scenario-tab.after.active { color: var(--green); border-color: rgba(57,255,126,0.3); }
+
+/* MAIN GRID */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+/* MAP */
+.map-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+.panel-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Space Mono', monospace;
+  color: var(--muted);
+}
+.panel-title span { color: var(--accent); }
+
+#mapCanvas {
+  width: 100%;
+  height: 520px;
+  display: block;
+  cursor: crosshair;
+}
+
+.map-legend {
+  display: flex;
+  gap: 16px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* RIGHT PANEL */
+.right-panel { display: flex; flex-direction: column; gap: 16px; }
+
+/* KPI CARDS */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--card-color, var(--accent));
+}
+.kpi-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Space Mono', monospace; margin-bottom: 6px; }
+.kpi-value { font-size: 26px; font-weight: 800; color: var(--card-color, var(--accent)); line-height: 1; }
+.kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.kpi-delta {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+.kpi-delta.good { background: rgba(57,255,126,0.15); color: var(--green); }
+.kpi-delta.bad { background: rgba(255,68,68,0.15); color: var(--red); }
+
+/* TIME CHART */
+.chart-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+#timeChart { width: 100%; }
+
+/* BOTTOM GRID */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+/* FEATURE PANELS */
+.feature-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* COMPANY TABLE */
+.company-table { width: 100%; border-collapse: collapse; }
+.company-table th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 10px;
+  font-family: 'Space Mono', monospace;
+  color: var(--muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+.company-table td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid rgba(30,45,69,0.5); }
+.company-table tr:last-child td { border-bottom: none; }
+.company-table tr:hover td { background: rgba(0,212,255,0.03); }
+
+.traffic-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  width: 80px;
+}
+.traffic-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1.5s ease;
+}
+
+.mode-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'Space Mono', monospace;
+}
+
+/* STAGGER CHART */
+.stagger-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stagger-slot:last-child { border-bottom: none; }
+.stagger-time {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  width: 55px;
+  flex-shrink: 0;
+}
+.stagger-bar-wrap { flex: 1; height: 20px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; position: relative; }
+.stagger-bar {
+  height: 100%;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #000;
+  transition: width 1.5s ease;
+}
+.stagger-count {
+  font-size: 11px;
+  color: var(--muted);
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* CARPOOL PANEL */
+.carpool-list { padding: 8px 14px; }
+.carpool-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.carpool-item:last-child { border-bottom: none; }
+.carpool-avatar {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.carpool-info { flex: 1; }
+.carpool-name { font-size: 12px; font-weight: 600; }
+.carpool-route { font-size: 10px; color: var(--muted); }
+.carpool-seats {
+  font-size: 10px;
+  font-family: 'Space Mono', monospace;
+  color: var(--accent3);
+  background: rgba(57,255,126,0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* WFH PANEL */
+.wfh-calendar { padding: 8px 14px; }
+.wfh-week {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.wfh-day {
+  text-align: center;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+}
+.wfh-day.office { background: rgba(0,212,255,0.1); border-color: rgba(0,212,255,0.3); color: var(--accent); }
+.wfh-day.wfh { background: rgba(57,255,126,0.1); border-color: rgba(57,255,126,0.3); color: var(--green); }
+.wfh-day .day-label { font-size: 9px; color: var(--muted); margin-bottom: 2px; }
+.wfh-companies { margin-top: 6px; }
+.wfh-company-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(30,45,69,0.5);
+  font-size: 11px;
+}
+.wfh-company-row:last-child { border-bottom: none; }
+.wfh-co-name { width: 90px; color: var(--muted); font-size: 10px; }
+.wfh-dots { display: flex; gap: 3px; }
+.wfh-dot { width: 14px; height: 14px; border-radius: 3px; font-size: 8px; display:flex;align-items:center;justify-content:center;font-weight:700; }
+.wfh-dot.o { background: rgba(0,212,255,0.2); color: var(--accent); }
+.wfh-dot.h { background: rgba(57,255,126,0.2); color: var(--green); }
+
+/* TRANSIT PANEL */
+.transit-list { padding: 8px 14px; }
+.transit-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.transit-item:last-child { border-bottom: none; }
+.transit-line {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  font-family: 'Space Mono', monospace;
+  flex-shrink: 0;
+}
+.transit-info { flex: 1; }
+.transit-name { font-size: 12px; font-weight: 600; }
+.transit-detail { font-size: 10px; color: var(--muted); }
+.transit-load {
+  font-size: 10px;
+  font-family: 'Space Mono', monospace;
+}
+.transit-load.low { color: var(--green); }
+.transit-load.med { color: var(--yellow); }
+.transit-load.high { color: var(--red); }
+
+/* SIMULATION TICKER */
+.ticker-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.ticker-label {
+  font-size: 10px;
+  font-family: 'Space Mono', monospace;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ticker-divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+.ticker-scroll { flex: 1; overflow: hidden; position: relative; height: 18px; }
+.ticker-inner {
+  display: flex;
+  gap: 40px;
+  animation: ticker 25s linear infinite;
+  white-space: nowrap;
+}
+@keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+.ticker-msg { font-size: 12px; color: var(--muted); }
+.ticker-msg .hi { color: var(--text); font-weight: 600; }
+.ticker-msg .accent { color: var(--accent); }
+.ticker-msg .green { color: var(--green); }
+
+/* Time display */
+.sim-time {
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  color: var(--accent);
+  background: rgba(0,212,255,0.05);
+  border: 1px solid rgba(0,212,255,0.2);
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+canvas { display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🚦</div>
+    <div>
+      <div class="logo-text">My<span>Commute</span></div>
+      <div class="logo-sub">KLANG VALLEY SMART COMMUTE COORDINATION SYSTEM — PILOT SIMULATION</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="sim-time" id="simTime">07:00 AM</div>
+    <div class="live-badge"><div class="live-dot"></div> SIM RUNNING</div>
+    <div class="sim-controls">
+      <button class="btn" onclick="resetSim()">↺ Reset</button>
+      <button class="btn primary" id="playBtn" onclick="togglePlay()">⏸ Pause</button>
+    </div>
+  </div>
+</header>
+
+<!-- TICKER -->
+<div class="ticker-bar">
+  <div class="ticker-label">SYSTEM FEED</div>
+  <div class="ticker-divider"></div>
+  <div class="ticker-scroll">
+    <div class="ticker-inner" id="ticker">
+      <span class="ticker-msg">🚗 <span class="hi">Petronas Twin Towers</span> — <span class="accent">847 staff</span> shifted to 9:30AM start, reducing peak hour load by <span class="green">31%</span></span>
+      <span class="ticker-msg">🚌 <span class="hi">RapidKL BRT Sunway</span> — Frequency increased to every <span class="accent">4 minutes</span> during 7–9AM window</span>
+      <span class="ticker-msg">🚗 <span class="hi">Carpool cluster: Subang Jaya → KLCC</span> — <span class="accent">142 vehicles</span> consolidated to <span class="green">38 shared rides</span>, saving 104 trips</span>
+      <span class="ticker-msg">🏠 <span class="hi">WFH Tuesday rotation</span> — <span class="accent">23 companies</span> activated, <span class="green">14,200 commuters</span> off roads today</span>
+      <span class="ticker-msg">⚠️ <span class="hi">Bottleneck detected: Jalan Duta</span> — Rerouting 320 vehicles via <span class="accent">Sprint Highway</span></span>
+      <span class="ticker-msg">✅ <span class="hi">PLUS North-South Expressway</span> — Traffic flowing at <span class="green">92% normal speed</span> due to stagger effect</span>
+      <span class="ticker-msg">🚗 <span class="hi">Petronas Twin Towers</span> — <span class="accent">847 staff</span> shifted to 9:30AM start, reducing peak hour load by <span class="green">31%</span></span>
+      <span class="ticker-msg">🚌 <span class="hi">RapidKL BRT Sunway</span> — Frequency increased to every <span class="accent">4 minutes</span> during 7–9AM window</span>
+      <span class="ticker-msg">🚗 <span class="hi">Carpool cluster: Subang Jaya → KLCC</span> — <span class="accent">142 vehicles</span> consolidated to <span class="green">38 shared rides</span>, saving 104 trips</span>
+      <span class="ticker-msg">🏠 <span class="hi">WFH Tuesday rotation</span> — <span class="accent">23 companies</span> activated, <span class="green">14,200 commuters</span> off roads today</span>
+    </div>
+  </div>
+</div>
+
+<!-- SCENARIO BAR -->
+<div class="scenario-bar">
+  <div class="scenario-tab before active" id="tab-before" onclick="setScenario('before')">🔴 BEFORE — Uncoordinated (Status Quo)</div>
+  <div class="scenario-tab" style="width:4px;flex:0;background:var(--border);border-radius:0;margin:6px 0;"></div>
+  <div class="scenario-tab after" id="tab-after" onclick="setScenario('after')">🟢 AFTER — MyCommute Active (Simulated)</div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main-grid">
+  <!-- MAP -->
+  <div class="map-panel">
+    <div class="panel-header">
+      <div class="panel-title"><span>KL</span> TRAFFIC MAP — REAL-TIME SIMULATION</div>
+      <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace" id="congestionLevel">CONGESTION: <span style="color:var(--red)">CRITICAL</span></div>
+    </div>
+    <canvas id="mapCanvas"></canvas>
+    <div class="map-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#ff4444"></div> Critical</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ff8c00"></div> Heavy</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ffd700"></div> Moderate</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#39ff7e"></div> Free-flowing</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#00d4ff"></div> Landmark</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div> Carpool Hub</div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <!-- KPI CARDS -->
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--card-color: #ff4444" id="kpi-congestion">
+        <div class="kpi-label">Congestion Level</div>
+        <div class="kpi-value" id="val-congestion">87%</div>
+        <div class="kpi-sub">Peak hour avg</div>
+        <div class="kpi-delta bad" id="delta-congestion">Status Quo</div>
+      </div>
+      <div class="kpi-card" style="--card-color: #ffd166" id="kpi-time">
+        <div class="kpi-label">Avg Commute Time</div>
+        <div class="kpi-value" id="val-time">68<span style="font-size:16px">min</span></div>
+        <div class="kpi-sub">KLCC → Subang</div>
+        <div class="kpi-delta bad" id="delta-time">Baseline</div>
+      </div>
+      <div class="kpi-card" style="--card-color: #39ff7e" id="kpi-vehicles">
+        <div class="kpi-label">Vehicles on Road</div>
+        <div class="kpi-value" id="val-vehicles">284K</div>
+        <div class="kpi-sub">7–9AM window</div>
+        <div class="kpi-delta bad" id="delta-vehicles">Baseline</div>
+      </div>
+      <div class="kpi-card" style="--card-color: #00d4ff" id="kpi-co2">
+        <div class="kpi-label">CO₂ Saved</div>
+        <div class="kpi-value" id="val-co2">0<span style="font-size:16px">t</span></div>
+        <div class="kpi-sub">vs. baseline/day</div>
+        <div class="kpi-delta bad" id="delta-co2">No saving</div>
+      </div>
+    </div>
+
+    <!-- BEFORE/AFTER TRAFFIC CHART -->
+    <div class="chart-panel">
+      <div class="panel-header" style="padding:0 0 10px 0;border:none">
+        <div class="panel-title">HOURLY <span>TRAFFIC VOLUME</span></div>
+      </div>
+      <canvas id="timeChart" height="140"></canvas>
+    </div>
+
+    <!-- PROGRESS BARS -->
+    <div class="chart-panel">
+      <div class="panel-header" style="padding:0 0 10px 0;border:none">
+        <div class="panel-title">MEASURE <span>IMPACT BREAKDOWN</span></div>
+      </div>
+      <div id="impact-bars"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM GRID -->
+<div class="bottom-grid">
+  <!-- COMPANY TABLE -->
+  <div class="feature-panel">
+    <div class="panel-header"><div class="panel-title">COMPANY <span>COORDINATION</span></div></div>
+    <div style="overflow-y:auto;max-height:260px">
+    <table class="company-table">
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Staff</th>
+          <th>Mode</th>
+          <th>Load</th>
+        </tr>
+      </thead>
+      <tbody id="companyTbody"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- STAGGER HOURS -->
+  <div class="feature-panel">
+    <div class="panel-header"><div class="panel-title">STAGGERED <span>WORK HOURS</span></div></div>
+    <div style="padding:12px 14px" id="staggerPanel"></div>
+  </div>
+
+  <!-- CARPOOL -->
+  <div class="feature-panel">
+    <div class="panel-header"><div class="panel-title">ACTIVE <span>CARPOOLS</span></div></div>
+    <div class="carpool-list" id="carpoolList"></div>
+  </div>
+
+  <!-- WFH CALENDAR + TRANSIT -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="feature-panel">
+      <div class="panel-header"><div class="panel-title">WFH <span>ROTATION CALENDAR</span></div></div>
+      <div class="wfh-calendar" id="wfhCalendar"></div>
+    </div>
+    <div class="feature-panel">
+      <div class="panel-header"><div class="panel-title">PUBLIC <span>TRANSIT LOAD</span></div></div>
+      <div class="transit-list" id="transitList"></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// =========== STATE ===========
+let scenario = 'before';
+let simRunning = true;
+let simMinutes = 7 * 60; // 7:00AM
+let animFrame;
+let timeChartData = { before: [], after: [] };
+
+// =========== DATA ===========
+const landmarks = [
+  { name: 'KLCC / Petronas', x: 0.55, y: 0.38, icon: '🏙️', major: true },
+  { name: 'KL Sentral', x: 0.42, y: 0.55, icon: '🚉', major: true },
+  { name: 'Bukit Bintang', x: 0.52, y: 0.48, icon: '🛍️', major: false },
+  { name: 'Chow Kit', x: 0.50, y: 0.28, icon: '🏪', major: false },
+  { name: 'Damansara', x: 0.20, y: 0.30, icon: '🏢', major: true },
+  { name: 'Subang Jaya', x: 0.10, y: 0.60, icon: '🏘️', major: true },
+  { name: 'Shah Alam', x: 0.08, y: 0.72, icon: '🏛️', major: true },
+  { name: 'Petaling Jaya', x: 0.22, y: 0.65, icon: '🏙️', major: true },
+  { name: 'Cheras', x: 0.60, y: 0.72, icon: '🏘️', major: false },
+  { name: 'Ampang', x: 0.72, y: 0.40, icon: '🏡', major: false },
+  { name: 'Mont Kiara', x: 0.35, y: 0.22, icon: '🏗️', major: false },
+  { name: 'Puchong', x: 0.18, y: 0.82, icon: '🏘️', major: false },
+  { name: 'Kepong', x: 0.38, y: 0.15, icon: '🏭', major: false },
+  { name: 'Klang', x: 0.03, y: 0.70, icon: '🏙️', major: true },
+  { name: 'Cyberjaya', x: 0.22, y: 0.90, icon: '💻', major: false },
+  { name: 'Putrajaya', x: 0.40, y: 0.92, icon: '🏛️', major: true },
+];
+
+const roads = [
+  // [from_idx, to_idx, name, congestion_before, congestion_after]
+  [0, 1, 'Jln Ampang', 0.95, 0.45],
+  [0, 3, 'Jln Sultan Ismail', 0.90, 0.40],
+  [0, 4, 'SPRINT', 0.85, 0.35],
+  [1, 7, 'Federal Hwy', 0.92, 0.42],
+  [1, 5, 'Federal Hwy S', 0.88, 0.38],
+  [4, 5, 'NKVE', 0.75, 0.30],
+  [4, 11, 'LDP', 0.80, 0.35],
+  [5, 6, 'Federal Hwy W', 0.70, 0.28],
+  [6, 13, 'Jln Kapar', 0.60, 0.25],
+  [7, 2, 'Jln PJ', 0.82, 0.40],
+  [2, 0, 'Jln Imbi', 0.78, 0.36],
+  [8, 0, 'MRR2', 0.85, 0.38],
+  [9, 0, 'Ampang-KL', 0.80, 0.35],
+  [10, 4, 'Penchala Link', 0.65, 0.28],
+  [11, 7, 'LDP South', 0.75, 0.32],
+  [12, 3, 'Jln Duta', 0.88, 0.40],
+  [15, 1, 'Putrajaya-KL', 0.55, 0.22],
+  [14, 11, 'Cyberjaya Rd', 0.50, 0.20],
+];
+
+const carpoolHubs = [
+  { name: 'Subang Parade', x: 0.12, y: 0.58 },
+  { name: 'IOI City', x: 0.38, y: 0.88 },
+  { name: 'Sunway Velocity', x: 0.52, y: 0.68 },
+  { name: 'Tropicana', x: 0.22, y: 0.28 },
+];
+
+const companies = [
+  { name: 'Petronas', staff: 3200, sector: 'Energy', shift: '9:30AM', wfh: 2, load: { before: 0.92, after: 0.35 } },
+  { name: 'Maybank', staff: 2800, sector: 'Banking', shift: '8:00AM', wfh: 1, load: { before: 0.88, after: 0.40 } },
+  { name: 'CIMB Group', staff: 2400, sector: 'Banking', shift: '10:00AM', wfh: 2, load: { before: 0.85, after: 0.30 } },
+  { name: 'Telekom Malaysia', staff: 1900, sector: 'Telecom', shift: '8:30AM', wfh: 2, load: { before: 0.78, after: 0.28 } },
+  { name: 'AirAsia', staff: 1600, sector: 'Aviation', shift: '7:00AM', wfh: 1, load: { before: 0.70, after: 0.32 } },
+  { name: 'Maxis Bhd', staff: 1200, sector: 'Telecom', shift: '9:00AM', wfh: 3, load: { before: 0.82, after: 0.25 } },
+  { name: 'Public Bank', staff: 1800, sector: 'Banking', shift: '8:00AM', wfh: 1, load: { before: 0.86, after: 0.38 } },
+  { name: 'Sime Darby', staff: 980, sector: 'Conglom.', shift: '10:30AM', wfh: 2, load: { before: 0.72, after: 0.28 } },
+];
+
+const staggerSlots = [
+  { time: '7:00 AM', label: 'Early Bird', count_before: 18, count_after: 8, color: '#00d4ff' },
+  { time: '8:00 AM', label: 'Standard', count_before: 62, count_after: 22, color: '#ff6b35' },
+  { time: '9:00 AM', label: 'Mid-shift', count_before: 15, count_after: 35, color: '#ffd166' },
+  { time: '9:30 AM', label: 'Extended', count_before: 3, count_after: 20, color: '#a855f7' },
+  { time: '10:00AM', label: 'Flex', count_before: 2, count_after: 15, color: '#39ff7e' },
+];
+
+const carpools = [
+  { icon: '🚗', name: 'Airil + 3 others', route: 'Subang Jaya → KLCC', seats: '4/4' },
+  { icon: '🚙', name: 'Farah + 2 others', route: 'Petaling Jaya → KL Sentral', seats: '3/4' },
+  { icon: '🚗', name: 'Reza + 1 other', route: 'Puchong → Damansara', seats: '2/4' },
+  { icon: '🚙', name: 'Nurul + 3 others', route: 'Shah Alam → Bukit Bintang', seats: '4/4' },
+  { icon: '🚗', name: 'Hafiz + 2 others', route: 'Klang → Mont Kiara', seats: '3/4' },
+];
+
+const wfhCompanies = [
+  { name: 'Petronas', days: ['O','H','O','H','O'] },
+  { name: 'Maybank', days: ['O','O','H','O','O'] },
+  { name: 'CIMB', days: ['H','O','O','O','H'] },
+  { name: 'Maxis Bhd', days: ['O','H','O','H','O'] },
+];
+
+const transitLines = [
+  { code: 'LRT', name: 'Kelana Jaya Line', detail: 'KLCC ↔ Subang', load: 'med', pct: '74%', color: '#e63946' },
+  { code: 'MRT', name: 'Klang Valley MRT', detail: 'Kwasa ↔ Kajang', load: 'low', pct: '58%', color: '#2196f3' },
+  { code: 'BRT', name: 'Sunway BRT', detail: 'Sunway ↔ Setia Jaya', load: 'low', pct: '45%', color: '#ff9800' },
+  { code: 'KTM', name: 'KTM Komuter', detail: 'Shah Alam ↔ Sentral', load: 'high', pct: '92%', color: '#4caf50' },
+];
+
+// =========== INIT ===========
+function init() {
+  renderCompanyTable();
+  renderStagger();
+  renderCarpools();
+  renderWFH();
+  renderTransit();
+  generateChartData();
+  drawTimeChart();
+  renderImpactBars();
+  drawMap();
+  startSimClock();
+}
+
+// =========== MAP ===========
+function drawMap() {
+  const canvas = document.getElementById('mapCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  canvas.width = W;
+  canvas.height = H;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background gradient
+  const bg = ctx.createRadialGradient(W*0.5, H*0.5, 0, W*0.5, H*0.5, W*0.6);
+  bg.addColorStop(0, '#0d1420');
+  bg.addColorStop(1, '#060a12');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw roads
+  roads.forEach(road => {
+    const from = landmarks[road[0]];
+    const to = landmarks[road[1]];
+    const cong = scenario === 'before' ? road[3] : road[4];
+
+    const x1 = from.x * W, y1 = from.y * H;
+    const x2 = to.x * W, y2 = to.y * H;
+
+    // Road glow
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = getTrafficColor(cong, 0.15);
+    ctx.lineWidth = 12;
+    ctx.stroke();
+
+    // Road line
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = getTrafficColor(cong, 0.9);
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Road label
+    const mx = (x1+x2)/2, my = (y1+y2)/2;
+    ctx.fillStyle = 'rgba(90,122,158,0.7)';
+    ctx.font = '9px Sora';
+    ctx.textAlign = 'center';
+    ctx.fillText(road[2], mx, my - 4);
+  });
+
+  // Carpool hubs
+  carpoolHubs.forEach(hub => {
+    const x = hub.x * W, y = hub.y * H;
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(168,85,247,0.3)';
+    ctx.fill();
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    if (scenario === 'after') {
+      // Pulse ring
+      ctx.beginPath();
+      const r = 12 + (Date.now() % 1500) / 1500 * 10;
+      ctx.arc(x, y, r, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(168,85,247,${0.5 - (Date.now()%1500)/3000})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  });
+
+  // Moving vehicles
+  drawVehicles(ctx, W, H);
+
+  // Landmarks
+  landmarks.forEach(lm => {
+    const x = lm.x * W, y = lm.y * H;
+    const r = lm.major ? 10 : 7;
+
+    ctx.beginPath();
+    ctx.arc(x, y, r + 4, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,212,255,0.08)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fillStyle = '#0d1420';
+    ctx.fill();
+    ctx.strokeStyle = lm.major ? 'rgba(0,212,255,0.8)' : 'rgba(0,212,255,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.font = lm.major ? '11px Sora' : '9px Sora';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = lm.major ? '#e8f0fe' : '#5a7a9e';
+    ctx.fillText(lm.name, x, y + r + 12);
+  });
+
+  // Congestion label
+  const avgCong = scenario === 'before' ? 0.87 : 0.38;
+  const label = avgCong > 0.7 ? 'CRITICAL' : avgCong > 0.5 ? 'HEAVY' : avgCong > 0.3 ? 'MODERATE' : 'FREE-FLOWING';
+  const col = avgCong > 0.7 ? 'var(--red)' : avgCong > 0.5 ? 'var(--orange)' : avgCong > 0.3 ? 'var(--yellow)' : 'var(--green)';
+  document.getElementById('congestionLevel').innerHTML = `CONGESTION: <span style="color:${col}">${label}</span>`;
+}
+
+let vehicles = [];
+function initVehicles(W, H) {
+  vehicles = [];
+  roads.forEach((road, ri) => {
+    const count = scenario === 'before' ? 6 : 2;
+    for (let i = 0; i < count; i++) {
+      vehicles.push({
+        roadIdx: ri,
+        t: Math.random(),
+        speed: 0.002 + Math.random() * 0.003,
+        dir: Math.random() > 0.5 ? 1 : -1,
+      });
+    }
+  });
+}
+
+function drawVehicles(ctx, W, H) {
+  vehicles.forEach(v => {
+    v.t += v.speed * v.dir;
+    if (v.t > 1) v.t = 0;
+    if (v.t < 0) v.t = 1;
+
+    const road = roads[v.roadIdx];
+    const from = landmarks[road[0]];
+    const to = landmarks[road[1]];
+    const x = (from.x + (to.x - from.x) * v.t) * W;
+    const y = (from.y + (to.y - from.y) * v.t) * H;
+    const cong = scenario === 'before' ? road[3] : road[4];
+
+    ctx.beginPath();
+    ctx.arc(x, y, 2.5, 0, Math.PI*2);
+    ctx.fillStyle = getTrafficColor(cong, 1);
+    ctx.fill();
+  });
+}
+
+function getTrafficColor(cong, alpha) {
+  if (cong > 0.75) return `rgba(255,68,68,${alpha})`;
+  if (cong > 0.55) return `rgba(255,140,0,${alpha})`;
+  if (cong > 0.35) return `rgba(255,215,0,${alpha})`;
+  return `rgba(57,255,126,${alpha})`;
+}
+
+let animT = 0;
+function animate() {
+  if (!simRunning) return;
+  animT++;
+  drawMap();
+  animFrame = requestAnimationFrame(animate);
+}
+
+// =========== SCENARIO ===========
+function setScenario(s) {
+  scenario = s;
+  document.getElementById('tab-before').className = 'scenario-tab before' + (s==='before'?' active':'');
+  document.getElementById('tab-after').className = 'scenario-tab after' + (s==='after'?' active':'');
+  updateKPIs();
+  renderStagger();
+  drawTimeChart();
+  renderImpactBars();
+  renderTransitLoad();
+  initVehicles(document.getElementById('mapCanvas').offsetWidth, document.getElementById('mapCanvas').offsetHeight);
+}
+
+function updateKPIs() {
+  if (scenario === 'before') {
+    document.getElementById('val-congestion').innerHTML = '87%';
+    document.getElementById('delta-congestion').className = 'kpi-delta bad';
+    document.getElementById('delta-congestion').innerText = 'Status Quo';
+    document.getElementById('kpi-congestion').style.setProperty('--card-color','#ff4444');
+
+    document.getElementById('val-time').innerHTML = '68<span style="font-size:16px">min</span>';
+    document.getElementById('delta-time').className = 'kpi-delta bad';
+    document.getElementById('delta-time').innerText = 'Baseline';
+
+    document.getElementById('val-vehicles').innerHTML = '284K';
+    document.getElementById('delta-vehicles').className = 'kpi-delta bad';
+    document.getElementById('delta-vehicles').innerText = 'Baseline';
+
+    document.getElementById('val-co2').innerHTML = '0<span style="font-size:16px">t</span>';
+    document.getElementById('delta-co2').className = 'kpi-delta bad';
+    document.getElementById('delta-co2').innerText = 'No saving';
+  } else {
+    document.getElementById('val-congestion').innerHTML = '38%';
+    document.getElementById('delta-congestion').className = 'kpi-delta good';
+    document.getElementById('delta-congestion').innerText = '▼ 56% reduction';
+    document.getElementById('kpi-congestion').style.setProperty('--card-color','#39ff7e');
+
+    document.getElementById('val-time').innerHTML = '29<span style="font-size:16px">min</span>';
+    document.getElementById('delta-time').className = 'kpi-delta good';
+    document.getElementById('delta-time').innerText = '▼ 57% faster';
+
+    document.getElementById('val-vehicles').innerHTML = '178K';
+    document.getElementById('delta-vehicles').className = 'kpi-delta good';
+    document.getElementById('delta-vehicles').innerText = '▼ 106K fewer';
+
+    document.getElementById('val-co2').innerHTML = '412<span style="font-size:16px">t</span>';
+    document.getElementById('delta-co2').className = 'kpi-delta good';
+    document.getElementById('delta-co2').innerText = '▲ 412 tonnes saved';
+  }
+  renderCompanyTable();
+}
+
+// =========== CHART ===========
+function generateChartData() {
+  const hours = ['6AM','7AM','8AM','9AM','10AM','11AM','12PM','1PM','2PM','3PM','4PM','5PM','6PM','7PM'];
+  const beforeVol = [15,55,95,88,65,48,42,50,52,58,72,90,80,45];
+  const afterVol  = [22,40,55,68,62,48,42,50,52,55,60,70,65,38];
+  timeChartData = { hours, beforeVol, afterVol };
+}
+
+function drawTimeChart() {
+  const canvas = document.getElementById('timeChart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.parentElement.offsetWidth - 32;
+  const H = 140;
+  canvas.width = W;
+  canvas.height = H;
+  ctx.clearRect(0, 0, W, H);
+
+  const { hours, beforeVol, afterVol } = timeChartData;
+  const n = hours.length;
+  const padL = 8, padR = 8, padT = 10, padB = 24;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
+  // Grid
+  [25, 50, 75, 100].forEach(v => {
+    const y = padT + chartH * (1 - v/100);
+    ctx.beginPath();
+    ctx.moveTo(padL, y); ctx.lineTo(W-padR, y);
+    ctx.strokeStyle = 'rgba(30,45,69,0.8)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#3a5070';
+    ctx.font = '9px Space Mono';
+    ctx.fillText(v+'%', 0, y+3);
+  });
+
+  function drawLine(data, color, fill) {
+    ctx.beginPath();
+    data.forEach((v, i) => {
+      const x = padL + (i/(n-1)) * chartW;
+      const y = padT + chartH * (1 - v/100);
+      i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    if (fill) {
+      ctx.lineTo(padL + chartW, padT + chartH);
+      ctx.lineTo(padL, padT + chartH);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, padT, 0, padT+chartH);
+      grad.addColorStop(0, color.replace(')',',0.3)').replace('rgb','rgba'));
+      grad.addColorStop(1, color.replace(')',',0)').replace('rgb','rgba'));
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.beginPath();
+      data.forEach((v, i) => {
+        const x = padL + (i/(n-1)) * chartW;
+        const y = padT + chartH * (1 - v/100);
+        i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      });
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  drawLine(beforeVol, 'rgba(255,68,68,1)', true);
+  drawLine(afterVol, 'rgba(57,255,126,1)', true);
+
+  // Hour labels
+  hours.forEach((h, i) => {
+    if (i % 2 !== 0) return;
+    const x = padL + (i/(n-1)) * chartW;
+    ctx.fillStyle = '#3a5070';
+    ctx.font = '9px Space Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(h, x, H - 6);
+  });
+
+  // Legend
+  ctx.fillStyle = '#ff4444'; ctx.fillRect(padL, padT, 20, 3);
+  ctx.fillStyle = '#5a7a9e'; ctx.font = '10px Sora';
+  ctx.textAlign = 'left'; ctx.fillText('Before', padL+24, padT+5);
+  ctx.fillStyle = '#39ff7e'; ctx.fillRect(padL+80, padT, 20, 3);
+  ctx.fillStyle = '#5a7a9e'; ctx.fillText('After', padL+104, padT+5);
+}
+
+// =========== IMPACT BARS ===========
+function renderImpactBars() {
+  const measures = [
+    { label: 'Staggered Hours', before: 0, after: 28, color: '#00d4ff', unit: '% congestion reduced' },
+    { label: 'WFH Rotation', before: 0, after: 22, color: '#39ff7e', unit: '% vehicles removed' },
+    { label: 'Carpooling', before: 0, after: 18, color: '#a855f7', unit: '% trip reduction' },
+    { label: 'Public Transit', before: 0, after: 12, color: '#ffd166', unit: '% modal shift' },
+  ];
+  const val = scenario === 'after';
+  const el = document.getElementById('impact-bars');
+  el.innerHTML = measures.map(m => `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:11px;color:var(--muted)">${m.label}</span>
+        <span style="font-size:11px;font-family:'Space Mono',monospace;color:${m.color}">${val ? '+'+m.after : '0'}${m.unit.includes('%') ? '%' : ''}</span>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${val ? m.after : 0}%;background:${m.color};border-radius:3px;transition:width 1.5s ease;max-width:100%"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// =========== COMPANY TABLE ===========
+function renderCompanyTable() {
+  const tbody = document.getElementById('companyTbody');
+  tbody.innerHTML = companies.map(c => {
+    const load = scenario === 'before' ? c.load.before : c.load.after;
+    const pct = Math.round(load * 100);
+    const col = load > 0.7 ? '#ff4444' : load > 0.5 ? '#ff8c00' : load > 0.3 ? '#ffd700' : '#39ff7e';
+    const mode = scenario === 'after' ? `<span class="mode-badge" style="background:rgba(57,255,126,0.1);color:#39ff7e">${c.shift}</span>` 
+                                      : `<span class="mode-badge" style="background:rgba(255,68,68,0.1);color:#ff4444">8:00AM</span>`;
+    return `<tr>
+      <td><div style="font-weight:600;font-size:12px">${c.name}</div><div style="font-size:10px;color:var(--muted)">${c.sector}</div></td>
+      <td style="font-family:'Space Mono',monospace;font-size:12px">${c.staff.toLocaleString()}</td>
+      <td>${mode}</td>
+      <td><div class="traffic-bar"><div class="traffic-fill" style="width:${pct}%;background:${col}"></div></div><div style="font-size:10px;color:${col};margin-top:2px">${pct}%</div></td>
+    </tr>`;
+  }).join('');
+}
+
+// =========== STAGGER ===========
+function renderStagger() {
+  const el = document.getElementById('staggerPanel');
+  const maxCount = 62;
+  el.innerHTML = staggerSlots.map(s => {
+    const count = scenario === 'before' ? s.count_before : s.count_after;
+    const pct = (count / maxCount) * 100;
+    return `<div class="stagger-slot">
+      <div class="stagger-time">${s.time}</div>
+      <div class="stagger-bar-wrap">
+        <div class="stagger-bar" style="width:${pct}%;background:${s.color};min-width:${count>0?'20px':'0'}">${count > 8 ? s.label : ''}</div>
+      </div>
+      <div class="stagger-count">${count}K</div>
+    </div>`;
+  }).join('');
+}
+
+// =========== CARPOOLS ===========
+function renderCarpools() {
+  const el = document.getElementById('carpoolList');
+  const colors = ['#00d4ff','#ff6b35','#39ff7e','#ffd166','#a855f7'];
+  el.innerHTML = carpools.map((c, i) => `
+    <div class="carpool-item">
+      <div class="carpool-avatar" style="background:${colors[i]}22;color:${colors[i]}">${c.icon}</div>
+      <div class="carpool-info">
+        <div class="carpool-name">${c.name}</div>
+        <div class="carpool-route">${c.route}</div>
+      </div>
+      <div class="carpool-seats">${c.seats}</div>
+    </div>
+  `).join('');
+}
+
+// =========== WFH ===========
+function renderWFH() {
+  const days = ['MON','TUE','WED','THU','FRI'];
+  const el = document.getElementById('wfhCalendar');
+  el.innerHTML = `
+    <div class="wfh-companies">
+      ${wfhCompanies.map(co => `
+        <div class="wfh-company-row">
+          <div class="wfh-co-name">${co.name}</div>
+          <div class="wfh-dots">
+            ${co.days.map((d,i) => `<div class="wfh-dot ${d.toLowerCase()}" title="${days[i]}">${d}</div>`).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="margin-top:8px;display:flex;gap:12px;font-size:10px;color:var(--muted)">
+      <span><span style="color:var(--accent)">■</span> Office</span>
+      <span><span style="color:var(--green)">■</span> WFH</span>
+      ${scenario==='after'?`<span style="color:var(--green);font-weight:700">14,200 off roads today ✓</span>`:`<span style="color:var(--red)">All in-office</span>`}
+    </div>
+  `;
+}
+
+// =========== TRANSIT ===========
+function renderTransit() { renderTransitLoad(); }
+function renderTransitLoad() {
+  const el = document.getElementById('transitList');
+  el.innerHTML = transitLines.map(t => {
+    let load = t.load;
+    let pct = t.pct;
+    if (scenario === 'after') {
+      load = t.load === 'high' ? 'med' : 'low';
+      pct = t.load === 'high' ? '64%' : t.load === 'med' ? '48%' : '35%';
+    }
+    return `<div class="transit-item">
+      <div class="transit-line" style="background:${t.color}22;color:${t.color}">${t.code}</div>
+      <div class="transit-info">
+        <div class="transit-name">${t.name}</div>
+        <div class="transit-detail">${t.detail}</div>
+      </div>
+      <div class="transit-load ${load}">${pct}</div>
+    </div>`;
+  }).join('');
+}
+
+// =========== SIM CLOCK ===========
+function startSimClock() {
+  setInterval(() => {
+    if (!simRunning) return;
+    simMinutes += 2;
+    if (simMinutes >= 22 * 60) simMinutes = 6 * 60;
+    const h = Math.floor(simMinutes / 60);
+    const m = simMinutes % 60;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+    document.getElementById('simTime').innerText = `${String(h12).padStart(2,'0')}:${String(m).padStart(2,'0')} ${ampm}`;
+  }, 200);
+}
+
+function togglePlay() {
+  simRunning = !simRunning;
+  document.getElementById('playBtn').innerText = simRunning ? '⏸ Pause' : '▶ Play';
+  if (simRunning) animate();
+}
+
+function resetSim() {
+  simMinutes = 7 * 60;
+  setScenario('before');
+}
+
+// =========== START ===========
+window.addEventListener('load', () => {
+  init();
+  initVehicles(document.getElementById('mapCanvas').offsetWidth, 520);
+  animate();
+});
+
+window.addEventListener('resize', () => {
+  drawMap();
+  drawTimeChart();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Impact — MyCommute KL{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb navigation -->
+<div style="margin-bottom: 16px; font-size: 12px; color: var(--muted);">
+  <a href="{% url 'staff:index' %}?staff_id={{ staff_member.pk }}" style="color: var(--accent); text-decoration: none;">Staff Portal</a>
+  <span style="margin: 0 8px;">/</span>
+  <span style="color: var(--text);">My Impact</span>
+</div>
+
+<!-- Personal Impact Stats -->
+<div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">
+  <div class="stat-card">
+    <div class="stat-value" style="color: var(--accent3);">{{ wfh_days }}</div>
+    <div class="stat-label">WFH Days / Week</div>
+    <div style="font-size: 10px; color: var(--muted); margin-top: 6px;">
+      {{ office_days }} office day{{ office_days|pluralize }}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color: var(--accent4);">
+      {% if avg_commute > 0 %}{{ avg_commute }}{% else %}—{% endif %}
+    </div>
+    <div class="stat-label">Avg Commute (min)</div>
+    <div style="font-size: 10px; color: var(--muted); margin-top: 6px;">
+      On office days
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color: var(--accent);">{{ co2_saved_kg }}</div>
+    <div class="stat-label">CO2 Saved (kg/week)</div>
+    <div style="font-size: 10px; color: var(--muted); margin-top: 6px;">
+      From WFH + coordination
+    </div>
+  </div>
+</div>
+
+<!-- Environmental Impact Visualization -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F331; Environmental <span>Impact</span></div>
+  </div>
+  <div style="padding: 24px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+      <!-- Personal Impact -->
+      <div>
+        <h3 style="font-size: 13px; font-weight: 700; color: var(--accent); font-family: 'Space Mono', monospace; text-transform: uppercase; margin-bottom: 16px;">
+          Your Contribution
+        </h3>
+
+        <!-- CO2 Bar -->
+        <div style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11px; color: var(--muted);">CO2 Emissions Avoided</span>
+            <span style="font-size: 11px; font-family: 'Space Mono', monospace; color: var(--accent3);">{{ co2_saved_kg }} kg/week</span>
+          </div>
+          <div style="height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+            <div style="height: 100%; width: {% widthratio co2_saved_kg 20 100 %}%; background: var(--accent3); border-radius: 4px; transition: width 1s ease; max-width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- WFH Impact -->
+        <div style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11px; color: var(--muted);">Trips Avoided (WFH)</span>
+            <span style="font-size: 11px; font-family: 'Space Mono', monospace; color: var(--accent);">{{ wfh_days }} day{{ wfh_days|pluralize }} / week</span>
+          </div>
+          <div style="height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+            <div style="height: 100%; width: {% widthratio wfh_days 5 100 %}%; background: var(--accent); border-radius: 4px; transition: width 1s ease;"></div>
+          </div>
+        </div>
+
+        <!-- Commute Efficiency -->
+        {% if avg_commute > 0 %}
+        <div style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11px; color: var(--muted);">Commute Efficiency</span>
+            <span style="font-size: 11px; font-family: 'Space Mono', monospace; color: var(--accent4);">{{ avg_commute }} min avg</span>
+          </div>
+          <div style="height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+            {% widthratio avg_commute 90 100 as commute_pct %}
+            <div style="height: 100%; width: {{ commute_pct }}%; background: var(--accent4); border-radius: 4px; transition: width 1s ease; max-width: 100%;"></div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Motivational message -->
+        <div style="
+          margin-top: 20px;
+          padding: 16px;
+          background: rgba(57,255,126,0.05);
+          border: 1px solid rgba(57,255,126,0.15);
+          border-radius: 10px;
+        ">
+          <div style="font-size: 20px; margin-bottom: 8px;">&#x1F30D;</div>
+          {% if co2_saved_kg > 5 %}
+          <div style="font-size: 13px; font-weight: 600; color: var(--green); margin-bottom: 4px;">
+            Great work! You are making a real difference.
+          </div>
+          <div style="font-size: 11px; color: var(--muted);">
+            Your {{ co2_saved_kg }} kg CO2 savings is equivalent to {{ wfh_days }} fewer car trips per week.
+            Over a year, that adds up to approximately {{ co2_saved_kg|floatformat:0 }} kg saved every week.
+          </div>
+          {% elif co2_saved_kg > 0 %}
+          <div style="font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 4px;">
+            Every bit counts. Keep contributing!
+          </div>
+          <div style="font-size: 11px; color: var(--muted);">
+            Your WFH days help reduce traffic and emissions across Klang Valley.
+            Even small changes add up when thousands participate.
+          </div>
+          {% else %}
+          <div style="font-size: 13px; font-weight: 600; color: var(--accent4); margin-bottom: 4px;">
+            You can make a difference too!
+          </div>
+          <div style="font-size: 11px; color: var(--muted);">
+            Consider opting in to WFH days or carpooling to reduce your commute footprint.
+            Talk to your company admin about available options.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Company-Level Impact -->
+      <div>
+        <h3 style="font-size: 13px; font-weight: 700; color: var(--accent); font-family: 'Space Mono', monospace; text-transform: uppercase; margin-bottom: 16px;">
+          {{ staff_member.company.name }} Impact
+        </h3>
+
+        {% if company_result %}
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+          <div class="kpi-card" style="--card-color: var(--red);">
+            <div class="kpi-label">Staff On Road (Before)</div>
+            <div class="kpi-value" style="font-size: 20px;">{{ company_result.staff_on_road_before }}</div>
+          </div>
+          <div class="kpi-card" style="--card-color: var(--green);">
+            <div class="kpi-label">Staff On Road (After)</div>
+            <div class="kpi-value" style="font-size: 20px;">{{ company_result.staff_on_road_after }}</div>
+          </div>
+          <div class="kpi-card" style="--card-color: var(--accent3);">
+            <div class="kpi-label">WFH Today</div>
+            <div class="kpi-value" style="font-size: 20px;">{{ company_result.wfh_count }}</div>
+          </div>
+          <div class="kpi-card" style="--card-color: var(--accent4);">
+            <div class="kpi-label">Carpooling</div>
+            <div class="kpi-value" style="font-size: 20px;">{{ company_result.carpool_count }}</div>
+          </div>
+        </div>
+
+        <!-- Company road reduction bar -->
+        {% if company_result.staff_on_road_before > 0 %}
+        {% widthratio company_result.staff_on_road_after company_result.staff_on_road_before 100 as road_pct %}
+        <div style="margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 11px; color: var(--muted);">Vehicles On Road Reduction</span>
+            <span style="font-size: 11px; font-family: 'Space Mono', monospace; color: var(--green);">
+              {{ company_result.staff_on_road_before|add:"-"|add:company_result.staff_on_road_after }} fewer
+            </span>
+          </div>
+          <div style="height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+            <div style="height: 100%; width: {{ road_pct }}%; background: linear-gradient(90deg, var(--green), var(--accent)); border-radius: 4px; transition: width 1s ease;"></div>
+          </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state" style="padding: 30px;">
+          <p>No company-level simulation results yet.</p>
+          <p style="font-size: 11px; margin-top: 4px;">Results will appear after a simulation run.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Transport Info -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F698; Your Commute <span>Profile</span></div>
+  </div>
+  <div style="padding: 16px;">
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+      <div style="text-align: center; padding: 12px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border);">
+        <div style="font-size: 20px; margin-bottom: 6px;">&#x1F3E0;</div>
+        <div style="font-size: 10px; color: var(--muted); text-transform: uppercase;">Home Zone</div>
+        <div style="font-size: 12px; font-weight: 600; margin-top: 4px;">{{ staff_member.home_zone.name }}</div>
+      </div>
+      <div style="text-align: center; padding: 12px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border);">
+        <div style="font-size: 20px; margin-bottom: 6px;">&#x1F698;</div>
+        <div style="font-size: 10px; color: var(--muted); text-transform: uppercase;">Transport</div>
+        <div style="font-size: 12px; font-weight: 600; margin-top: 4px;">{{ staff_member.get_primary_transport_display }}</div>
+      </div>
+      <div style="text-align: center; padding: 12px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border);">
+        <div style="font-size: 20px; margin-bottom: 6px;">&#x1F697;</div>
+        <div style="font-size: 10px; color: var(--muted); text-transform: uppercase;">Carpool</div>
+        <div style="font-size: 12px; font-weight: 600; margin-top: 4px;">
+          {% if staff_member.willing_to_carpool %}
+          <span style="color: var(--green);">Opted In</span>
+          {% else %}
+          <span style="color: var(--muted);">Not Opted In</span>
+          {% endif %}
+        </div>
+      </div>
+      <div style="text-align: center; padding: 12px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border);">
+        <div style="font-size: 20px; margin-bottom: 6px;">&#x1F3E0;</div>
+        <div style="font-size: 10px; color: var(--muted); text-transform: uppercase;">WFH Eligible</div>
+        <div style="font-size: 12px; font-weight: 600; margin-top: 4px;">
+          {% if staff_member.can_wfh %}
+          <span style="color: var(--green);">Yes</span>
+          {% else %}
+          <span style="color: var(--muted);">No</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Back to portal -->
+<div>
+  <a href="{% url 'staff:index' %}?staff_id={{ staff_member.pk }}" class="btn">&#x2190; Back to Portal</a>
+</div>
+{% endblock %}

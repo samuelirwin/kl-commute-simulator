@@ -1,0 +1,16 @@
+*.pyc
+__pycache__/
+db.sqlite3
+db.sqlite3-journal
+*.log
+logs/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+.DS_Store
+*.swp
+*.swo
+static/collected/
+media/

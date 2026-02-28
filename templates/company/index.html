@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Company Admin — MyCommute KL{% endblock %}
+
+{% block content %}
+{% if company %}
+
+<!-- Company Selector -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F3E2; Company <span>Selector</span></div>
+    <div>
+      <select id="companySelector" onchange="window.location.href='{% url 'company:index' %}?company=' + this.value" style="
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 14px;
+        color: var(--text);
+        font-family: 'Sora', sans-serif;
+        font-size: 13px;
+        cursor: pointer;
+      ">
+        {% for c in companies %}
+        <option value="{{ c.code }}" {% if c.code == company.code %}selected{% endif %}>
+          {{ c.name }} ({{ c.code }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Company Stats Cards -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value" style="color: var(--accent);">{{ staff_count }}</div>
+    <div class="stat-label">Total Staff</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color: var(--accent2);">{{ departments.count }}</div>
+    <div class="stat-label">Departments</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color: var(--accent3);">{{ company.wfh_days_per_week }}</div>
+    <div class="stat-label">WFH Days / Week</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color: var(--accent4);">{{ company.compliance_score|floatformat:0 }}%</div>
+    <div class="stat-label">Compliance Score</div>
+  </div>
+</div>
+
+<!-- Company Details -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+
+  <!-- Company Info Panel -->
+  <div class="feature-panel">
+    <div class="panel-header">
+      <div class="panel-title">&#x1F4CB; Company <span>Details</span></div>
+    </div>
+    <div style="padding: 16px;">
+      <table class="company-table">
+        <tbody>
+          <tr>
+            <td style="color: var(--muted); width: 140px;">Name</td>
+            <td style="font-weight: 600;">{{ company.name }}</td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">Code</td>
+            <td style="font-family: 'Space Mono', monospace; color: var(--accent);">{{ company.code }}</td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">Sector</td>
+            <td>{{ company.sector }}</td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">Office Zone</td>
+            <td>{{ company.office_zone }}</td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">Default Start</td>
+            <td style="font-family: 'Space Mono', monospace;">{{ company.default_start_time|time:"H:i" }}</td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">GLC</td>
+            <td>{% if company.is_glc %}<span style="color: var(--green);">Yes</span>{% else %}No{% endif %}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Simulation Result Summary -->
+  <div class="feature-panel">
+    <div class="panel-header">
+      <div class="panel-title">&#x1F4CA; Simulation <span>Result</span></div>
+    </div>
+    <div style="padding: 16px;">
+      {% if sim_result %}
+      <table class="company-table">
+        <tbody>
+          <tr>
+            <td style="color: var(--muted); width: 160px;">Assigned Start Time</td>
+            <td style="font-family: 'Space Mono', monospace; color: var(--accent);">
+              {{ sim_result.assigned_start_time|time:"H:i" }}
+            </td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">Staff On Road (Before)</td>
+            <td>
+              <span style="color: var(--red);">{{ sim_result.staff_on_road_before }}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">Staff On Road (After)</td>
+            <td>
+              <span style="color: var(--green);">{{ sim_result.staff_on_road_after }}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">WFH Count</td>
+            <td>
+              <span style="color: var(--accent3);">{{ sim_result.wfh_count }}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">Carpool Count</td>
+            <td>
+              <span style="color: var(--accent4);">{{ sim_result.carpool_count }}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: var(--muted);">Load Contribution</td>
+            <td>
+              <div class="traffic-bar" style="width: 120px; display: inline-block; vertical-align: middle;">
+                <div class="traffic-fill" style="width: {{ sim_result.load_contribution|floatformat:0 }}%; background: var(--accent);"></div>
+              </div>
+              <span style="font-size: 11px; color: var(--muted); margin-left: 6px;">
+                {{ sim_result.load_contribution|floatformat:1 }}%
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">
+        <p>No simulation results yet.</p>
+        <p style="font-size: 12px; margin-top: 8px;">Run a simulation from the <a href="{% url 'dashboard:index' %}" style="color: var(--accent);">Government Dashboard</a> first.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Departments List -->
+<div class="feature-panel" style="margin-bottom: 20px;">
+  <div class="panel-header">
+    <div class="panel-title">&#x1F4C1; Departments</div>
+  </div>
+  <table class="company-table">
+    <thead>
+      <tr>
+        <th>Department</th>
+        <th>Staff Count</th>
+        <th>WFH Eligible</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dept in departments %}
+      <tr>
+        <td style="font-weight: 600;">{{ dept.name }}</td>
+        <td style="font-family: 'Space Mono', monospace;">{{ dept.staff_count }}</td>
+        <td>
+          {% if dept.can_wfh %}
+          <span class="mode-badge" style="background: rgba(57,255,126,0.1); color: #39ff7e;">Yes</span>
+          {% else %}
+          <span class="mode-badge" style="background: rgba(255,68,68,0.1); color: #ff4444;">No</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="empty-state">No departments found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Quick Links -->
+<div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+  <a href="{% url 'company:staff_list' %}?company={{ company.code }}" class="stat-card" style="text-decoration: none; transition: border-color 0.3s;">
+    <div style="font-size: 28px; margin-bottom: 8px;">&#x1F465;</div>
+    <div class="stat-label">Staff List</div>
+    <div style="font-size: 11px; color: var(--accent); margin-top: 4px;">View & manage staff members</div>
+  </a>
+  <a href="{% url 'company:schedule' %}?company={{ company.code }}" class="stat-card" style="text-decoration: none; transition: border-color 0.3s;">
+    <div style="font-size: 28px; margin-bottom: 8px;">&#x1F4C5;</div>
+    <div class="stat-label">Schedule</div>
+    <div style="font-size: 11px; color: var(--accent); margin-top: 4px;">Weekly schedule grid</div>
+  </a>
+  <a href="{% url 'company:compliance' %}?company={{ company.code }}" class="stat-card" style="text-decoration: none; transition: border-color 0.3s;">
+    <div style="font-size: 28px; margin-bottom: 8px;">&#x2705;</div>
+    <div class="stat-label">Compliance</div>
+    <div style="font-size: 11px; color: var(--accent); margin-top: 4px;">Compliance dashboard</div>
+  </a>
+</div>
+
+{% else %}
+<!-- No company exists -->
+<div class="feature-panel" style="text-align: center; padding: 60px 40px;">
+  <div style="font-size: 48px; margin-bottom: 16px;">&#x1F3E2;</div>
+  <h2 style="margin-bottom: 12px; color: var(--accent);">No Companies Found</h2>
+  <p style="color: var(--muted); margin-bottom: 24px;">
+    Seed the database with company data to use the Company Admin portal.
+  </p>
+  <p style="color: var(--muted); font-family: 'Space Mono', monospace; font-size: 12px;">
+    Run: <span style="color: var(--accent);">python manage.py seed_data</span>
+  </p>
+</div>
+{% endif %}
+{% endblock %}

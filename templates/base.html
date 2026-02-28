@@ -1,0 +1,42 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}MyCommute KL{% endblock %}</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/base.css' %}">
+{% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="container">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">&#x1F6A6;</div>
+    <div>
+      <div class="logo-text">My<span>Commute</span></div>
+      <div class="logo-sub">KLANG VALLEY SMART COMMUTE COORDINATION SYSTEM</div>
+    </div>
+  </div>
+  <div class="header-right">
+    {% block header_controls %}{% endblock %}
+  </div>
+</header>
+
+<!-- NAVIGATION -->
+<div class="nav-tabs">
+  <a href="{% url 'dashboard:index' %}" class="nav-tab {% if nav_active == 'dashboard' %}active{% endif %}">&#x1F4CA; Government Dashboard</a>
+  <a href="{% url 'company:index' %}{% if company_code %}?company={{ company_code }}{% endif %}" class="nav-tab {% if nav_active == 'company' %}active{% endif %}">&#x1F3E2; Company Admin</a>
+  <a href="{% url 'staff:index' %}{% if staff_id %}?staff_id={{ staff_id }}{% endif %}" class="nav-tab {% if nav_active == 'staff' %}active{% endif %}">&#x1F464; Staff Portal</a>
+</div>
+
+{% block content %}{% endblock %}
+
+</div>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>
