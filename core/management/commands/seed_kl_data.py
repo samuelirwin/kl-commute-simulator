@@ -11,11 +11,13 @@ from datetime import time
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from django.utils import timezone
 
 from company.models import Company
 from core.models import CarpoolHub, Corridor, ModalSplit, TransitLine, Zone
 from simulation.models import CompanySimResult, CorridorTimeSlice, SimulationRun
+from staff.models import CarpoolGroup, CarpoolMembership
 
 logger = logging.getLogger("core")
 
@@ -25,26 +27,26 @@ logger = logging.getLogger("core")
 # ---------------------------------------------------------------------------
 
 ZONES = [
-    {"name": "KLCC / Petronas Towers", "code": "KLCC", "map_x": 0.55, "map_y": 0.38, "is_major": True, "icon": "office", "population": 45000},
-    {"name": "KL Sentral", "code": "KLSNTRL", "map_x": 0.42, "map_y": 0.55, "is_major": True, "icon": "train", "population": 35000},
-    {"name": "Bukit Bintang", "code": "BKTBNTG", "map_x": 0.52, "map_y": 0.48, "is_major": False, "icon": "shop", "population": 28000},
-    {"name": "Chow Kit", "code": "CHWKIT", "map_x": 0.50, "map_y": 0.28, "is_major": False, "icon": "market", "population": 22000},
-    {"name": "Damansara Heights", "code": "DMSRA", "map_x": 0.20, "map_y": 0.30, "is_major": True, "icon": "office", "population": 85000},
-    {"name": "Subang Jaya", "code": "SUBANG", "map_x": 0.10, "map_y": 0.60, "is_major": True, "icon": "house", "population": 380000},
-    {"name": "Shah Alam", "code": "SHAHALAM", "map_x": 0.08, "map_y": 0.72, "is_major": True, "icon": "gov", "population": 650000},
-    {"name": "Petaling Jaya", "code": "PJ", "map_x": 0.22, "map_y": 0.65, "is_major": True, "icon": "city", "population": 620000},
-    {"name": "Cheras", "code": "CHERAS", "map_x": 0.60, "map_y": 0.72, "is_major": True, "icon": "house", "population": 450000},
-    {"name": "Ampang", "code": "AMPANG", "map_x": 0.72, "map_y": 0.40, "is_major": False, "icon": "house", "population": 180000},
-    {"name": "Mont Kiara", "code": "MNTKRA", "map_x": 0.35, "map_y": 0.22, "is_major": False, "icon": "condo", "population": 65000},
-    {"name": "Puchong", "code": "PUCHONG", "map_x": 0.18, "map_y": 0.82, "is_major": True, "icon": "house", "population": 350000},
-    {"name": "Kepong", "code": "KEPONG", "map_x": 0.38, "map_y": 0.15, "is_major": False, "icon": "industry", "population": 280000},
-    {"name": "Klang", "code": "KLANG", "map_x": 0.03, "map_y": 0.70, "is_major": True, "icon": "city", "population": 520000},
-    {"name": "Cyberjaya", "code": "CYBER", "map_x": 0.22, "map_y": 0.90, "is_major": False, "icon": "tech", "population": 45000},
-    {"name": "Putrajaya", "code": "PTRJAYA", "map_x": 0.40, "map_y": 0.92, "is_major": True, "icon": "gov", "population": 110000},
-    {"name": "Bangsar", "code": "BNGSR", "map_x": 0.38, "map_y": 0.58, "is_major": False, "icon": "cafe", "population": 48000},
-    {"name": "Setapak", "code": "STPK", "map_x": 0.55, "map_y": 0.22, "is_major": False, "icon": "house", "population": 180000},
-    {"name": "Kajang", "code": "KAJANG", "map_x": 0.65, "map_y": 0.88, "is_major": False, "icon": "house", "population": 340000},
-    {"name": "Bandar Utama", "code": "BDRUTM", "map_x": 0.15, "map_y": 0.42, "is_major": False, "icon": "mall", "population": 120000},
+    {"name": "KLCC / Petronas Towers", "code": "KLCC", "lat": 3.1588, "lon": 101.7119, "map_x": 0.55, "map_y": 0.38, "is_major": True, "icon": "office", "population": 45000},
+    {"name": "KL Sentral", "code": "KLSNTRL", "lat": 3.1342, "lon": 101.6864, "map_x": 0.42, "map_y": 0.55, "is_major": True, "icon": "train", "population": 35000},
+    {"name": "Bukit Bintang", "code": "BKTBNTG", "lat": 3.1466, "lon": 101.7108, "map_x": 0.52, "map_y": 0.48, "is_major": False, "icon": "shop", "population": 28000},
+    {"name": "Chow Kit", "code": "CHWKIT", "lat": 3.1707, "lon": 101.6985, "map_x": 0.50, "map_y": 0.28, "is_major": False, "icon": "market", "population": 22000},
+    {"name": "Damansara Heights", "code": "DMSRA", "lat": 3.1550, "lon": 101.6553, "map_x": 0.20, "map_y": 0.30, "is_major": True, "icon": "office", "population": 85000},
+    {"name": "Subang Jaya", "code": "SUBANG", "lat": 3.0565, "lon": 101.5853, "map_x": 0.10, "map_y": 0.60, "is_major": True, "icon": "house", "population": 380000},
+    {"name": "Shah Alam", "code": "SHAHALAM", "lat": 3.0738, "lon": 101.5183, "map_x": 0.08, "map_y": 0.72, "is_major": True, "icon": "gov", "population": 650000},
+    {"name": "Petaling Jaya", "code": "PJ", "lat": 3.1073, "lon": 101.6068, "map_x": 0.22, "map_y": 0.65, "is_major": True, "icon": "city", "population": 620000},
+    {"name": "Cheras", "code": "CHERAS", "lat": 3.1073, "lon": 101.7502, "map_x": 0.60, "map_y": 0.72, "is_major": True, "icon": "house", "population": 450000},
+    {"name": "Ampang", "code": "AMPANG", "lat": 3.1500, "lon": 101.7650, "map_x": 0.72, "map_y": 0.40, "is_major": False, "icon": "house", "population": 180000},
+    {"name": "Mont Kiara", "code": "MNTKRA", "lat": 3.1718, "lon": 101.6528, "map_x": 0.35, "map_y": 0.22, "is_major": False, "icon": "condo", "population": 65000},
+    {"name": "Puchong", "code": "PUCHONG", "lat": 3.0443, "lon": 101.6171, "map_x": 0.18, "map_y": 0.82, "is_major": True, "icon": "house", "population": 350000},
+    {"name": "Kepong", "code": "KEPONG", "lat": 3.2090, "lon": 101.6341, "map_x": 0.38, "map_y": 0.15, "is_major": False, "icon": "industry", "population": 280000},
+    {"name": "Klang", "code": "KLANG", "lat": 3.0449, "lon": 101.4455, "map_x": 0.03, "map_y": 0.70, "is_major": True, "icon": "city", "population": 520000},
+    {"name": "Cyberjaya", "code": "CYBER", "lat": 2.9213, "lon": 101.6538, "map_x": 0.22, "map_y": 0.90, "is_major": False, "icon": "tech", "population": 45000},
+    {"name": "Putrajaya", "code": "PTRJAYA", "lat": 2.9264, "lon": 101.6964, "map_x": 0.40, "map_y": 0.92, "is_major": True, "icon": "gov", "population": 110000},
+    {"name": "Bangsar", "code": "BNGSR", "lat": 3.1290, "lon": 101.6719, "map_x": 0.38, "map_y": 0.58, "is_major": False, "icon": "cafe", "population": 48000},
+    {"name": "Setapak", "code": "STPK", "lat": 3.1890, "lon": 101.7143, "map_x": 0.55, "map_y": 0.22, "is_major": False, "icon": "house", "population": 180000},
+    {"name": "Kajang", "code": "KAJANG", "lat": 2.9927, "lon": 101.7909, "map_x": 0.65, "map_y": 0.88, "is_major": False, "icon": "house", "population": 340000},
+    {"name": "Bandar Utama", "code": "BDRUTM", "lat": 3.1314, "lon": 101.6115, "map_x": 0.15, "map_y": 0.42, "is_major": False, "icon": "mall", "population": 120000},
 ]
 
 CORRIDORS = [
@@ -137,15 +139,17 @@ class Command(BaseCommand):
         logger.info("Starting seed_kl_data command")
         self.stdout.write("Seeding MyCommute KL reference data...")
 
-        zone_map = self._seed_zones()
-        corridor_map = self._seed_corridors(zone_map)
-        self._seed_transit_lines(zone_map)
-        self._seed_carpool_hubs(zone_map)
-        self._seed_modal_splits()
-        company_map = self._seed_companies(zone_map)
-        sim_run = self._seed_simulation_run()
-        self._seed_corridor_time_slices(sim_run, corridor_map)
-        self._seed_company_sim_results(sim_run, company_map)
+        with transaction.atomic():
+            zone_map = self._seed_zones()
+            corridor_map = self._seed_corridors(zone_map)
+            self._seed_transit_lines(zone_map)
+            self._seed_carpool_hubs(zone_map)
+            self._seed_modal_splits()
+            company_map = self._seed_companies(zone_map)
+            sim_run = self._seed_simulation_run()
+            self._seed_corridor_time_slices(sim_run, corridor_map)
+            self._seed_company_sim_results(sim_run, company_map)
+            self._seed_carpool_groups(sim_run)
 
         self.stdout.write(self.style.SUCCESS("All seed data loaded successfully."))
         logger.info("seed_kl_data command completed successfully")
@@ -158,10 +162,12 @@ class Command(BaseCommand):
         zone_map = {}
         created_count = 0
         for z in ZONES:
-            obj, created = Zone.objects.get_or_create(
+            obj, created = Zone.objects.update_or_create(
                 code=z["code"],
                 defaults={
                     "name": z["name"],
+                    "latitude": z["lat"],
+                    "longitude": z["lon"],
                     "map_x": z["map_x"],
                     "map_y": z["map_y"],
                     "is_major": z["is_major"],
@@ -188,7 +194,7 @@ class Command(BaseCommand):
         corridor_map = {}
         created_count = 0
         for c in CORRIDORS:
-            obj, created = Corridor.objects.get_or_create(
+            obj, created = Corridor.objects.update_or_create(
                 code=c["code"],
                 defaults={
                     "name": c["name"],
@@ -341,38 +347,77 @@ class Command(BaseCommand):
     # Simulation run
     # ------------------------------------------------------------------
     def _seed_simulation_run(self):
-        """Create the pre-computed pilot simulation run if it does not exist."""
-        run_name = "KV Pilot Phase 1 \u2014 Feb 2026"
-        run, created = SimulationRun.objects.get_or_create(
+        """Create or update the pre-computed pilot simulation run.
+
+        Aggregate values are derived from the 25 companies' total_staff (38,260):
+        - 80% WFH-eligible, companies average ~1.7 WFH days/week
+        - WFH today: sum of (total_staff * wfh_days/5 * 0.8) across companies
+        - Carpool groups: ~12% uptake, avg 3.2 per group
+        - Peak vehicles before: 67% car mode share * total_staff * 0.85 peak factor
+        - Peak vehicles after: subtract WFH + carpool vehicle savings + stagger spread
+        """
+        run_name = "KV Pilot Phase 1 — Feb 2026"
+
+        # Compute consistent aggregate values from company data
+        total_staff = sum(c["total_staff"] for c in COMPANIES)
+        wfh_eligible = int(total_staff * 0.80)
+
+        # WFH today: per-company (staff * wfh_days/5 * 0.8 eligibility)
+        wfh_today = 0
+        for c in COMPANIES:
+            wfh_today += int(round(c["total_staff"] * (c["wfh_days_per_week"] / 5.0) * 0.80))
+
+        # Carpool: 12% of staff with vehicles (84% have vehicles), avg 3.2 per group
+        carpool_participants = int(total_staff * 0.84 * 0.12)
+        carpool_groups = int(round(carpool_participants / 3.2))
+
+        # Peak vehicles: 67% drive, 85% hit peak window
+        peak_vehicles_before = int(total_staff * 0.67 * 0.85)
+        carpool_savings = int(carpool_participants * 0.5)
+        peak_vehicles_after = peak_vehicles_before - wfh_today - carpool_savings
+
+        # Delete old computed data for this run name to allow re-seeding
+        old_run = SimulationRun.objects.filter(name=run_name).first()
+        if old_run:
+            CorridorTimeSlice.objects.filter(simulation_run=old_run).delete()
+            CompanySimResult.objects.filter(simulation_run=old_run).delete()
+            old_run.delete()
+            logger.info("Deleted old SimulationRun '%s' and related data for re-seed", run_name)
+
+        run = SimulationRun.objects.create(
             name=run_name,
-            defaults={
-                "status": "CMP",
-                "completed_at": timezone.now(),
-                "enable_stagger": True,
-                "enable_wfh": True,
-                "enable_carpool": True,
-                "enable_transit_boost": True,
-                "stagger_window_start": time(7, 0),
-                "stagger_window_end": time(10, 30),
-                "wfh_max_days": 2,
-                "wfh_sector_cap_pct": 40,
-                "carpool_max_detour_km": 5.0,
-                "transit_frequency_boost_pct": 20,
-                "peak_congestion_before": 0.87,
-                "peak_congestion_after": 0.38,
-                "avg_commute_before": 68.0,
-                "avg_commute_after": 29.0,
-                "peak_vehicles_before": 284000,
-                "peak_vehicles_after": 178000,
-                "co2_saved_tonnes": 412.0,
-                "total_carpool_groups": 186,
-                "total_wfh_today": 14200,
-            },
+            status="CMP",
+            completed_at=timezone.now(),
+            enable_stagger=True,
+            enable_wfh=True,
+            enable_carpool=True,
+            enable_transit_boost=True,
+            stagger_window_start=time(7, 0),
+            stagger_window_end=time(10, 30),
+            wfh_max_days=2,
+            wfh_sector_cap_pct=40,
+            carpool_max_detour_km=5.0,
+            transit_frequency_boost_pct=20,
+            peak_congestion_before=0.87,
+            peak_congestion_after=0.38,
+            avg_commute_before=68.0,
+            avg_commute_after=29.0,
+            peak_vehicles_before=peak_vehicles_before,
+            peak_vehicles_after=peak_vehicles_after,
+            co2_saved_tonnes=round((peak_vehicles_before - peak_vehicles_after) * 15.0 * 0.171 / 1000, 1),
+            total_carpool_groups=carpool_groups,
+            total_wfh_today=wfh_today,
         )
 
-        status_label = "created" if created else "already existed"
-        self.stdout.write(self.style.SUCCESS(f"  SimulationRun '{run_name}': {status_label}"))
-        logger.info("SimulationRun '%s' %s (id=%d)", run_name, status_label, run.pk)
+        self.stdout.write(self.style.SUCCESS(f"  SimulationRun '{run_name}': created (id={run.pk})"))
+        self.stdout.write(f"    Total staff: {total_staff}, WFH eligible: {wfh_eligible}")
+        self.stdout.write(f"    WFH today: {wfh_today}, Carpool groups: {carpool_groups}")
+        self.stdout.write(f"    Peak vehicles: {peak_vehicles_before} -> {peak_vehicles_after}")
+        logger.info(
+            "SimulationRun '%s' created (id=%d): staff=%d, wfh=%d, carpool=%d, vehicles=%d->%d",
+            run_name, run.pk, total_staff, wfh_today, carpool_groups,
+            peak_vehicles_before, peak_vehicles_after,
+        )
         return run
 
     # ------------------------------------------------------------------
@@ -388,19 +433,6 @@ class Command(BaseCommand):
         Uses BPR function to compute travel times from volume and capacity.
         Skips generation if records already exist for this run.
         """
-        existing_count = CorridorTimeSlice.objects.filter(simulation_run=sim_run).count()
-        if existing_count > 0:
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"  CorridorTimeSlice: {existing_count} records already exist for this run, skipping"
-                )
-            )
-            logger.info(
-                "Skipping CorridorTimeSlice generation: %d records already exist for run id=%d",
-                existing_count, sim_run.pk,
-            )
-            return
-
         # Build 64 time slots from 06:00 to 21:45 in 15-min increments
         time_slots = []
         for i in range(64):
@@ -508,19 +540,6 @@ class Command(BaseCommand):
 
         Computes staggered start times, WFH/carpool counts, and load contribution.
         """
-        existing_count = CompanySimResult.objects.filter(simulation_run=sim_run).count()
-        if existing_count > 0:
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"  CompanySimResult: {existing_count} records already exist for this run, skipping"
-                )
-            )
-            logger.info(
-                "Skipping CompanySimResult generation: %d records exist for run id=%d",
-                existing_count, sim_run.pk,
-            )
-            return
-
         # Sort companies by staff size (descending) for stagger assignment.
         # Larger companies get the most spread across the 07:00-10:30 window.
         sorted_companies = sorted(COMPANIES, key=lambda c: c["total_staff"], reverse=True)
@@ -605,3 +624,47 @@ class Command(BaseCommand):
         CompanySimResult.objects.bulk_create(results)
         self.stdout.write(self.style.SUCCESS(f"  CompanySimResult: {len(results)} records created"))
         logger.info("Created %d CompanySimResult records for run id=%d", len(results), sim_run.pk)
+
+    # ------------------------------------------------------------------
+    # Carpool groups (pre-seeded for dashboard display)
+    # ------------------------------------------------------------------
+    def _seed_carpool_groups(self, sim_run):
+        """Create sample carpool groups distributed across hubs.
+
+        Each hub gets 1-3 groups with 3-4 members each. These provide
+        the gov dashboard with realistic carpool aggregate data before
+        any staff members are seeded.
+        """
+        # Clear existing groups for this run
+        CarpoolGroup.objects.filter(simulation_run=sim_run).delete()
+
+        hubs = list(CarpoolHub.objects.all())
+        if not hubs:
+            self.stdout.write("  CarpoolGroup: no hubs found, skipping")
+            return
+
+        # Generate 2-3 groups per hub with varying departure times
+        group_templates = [
+            {"suffix": "Morning Early", "departure": time(7, 0), "seats": 4},
+            {"suffix": "Morning Peak", "departure": time(7, 30), "seats": 3},
+            {"suffix": "Morning Flex", "departure": time(8, 15), "seats": 4},
+        ]
+
+        created_count = 0
+        for hub in hubs:
+            # Each hub gets 2-3 groups based on capacity
+            num_groups = 3 if hub.capacity >= 80 else 2
+            for i in range(num_groups):
+                tmpl = group_templates[i]
+                CarpoolGroup.objects.create(
+                    name=f"{hub.name} — {tmpl['suffix']}",
+                    hub=hub,
+                    route_description=f"Via {hub.zone.name} corridor",
+                    departure_time=tmpl["departure"],
+                    max_seats=tmpl["seats"],
+                    simulation_run=sim_run,
+                )
+                created_count += 1
+
+        self.stdout.write(self.style.SUCCESS(f"  CarpoolGroup: {created_count} groups created"))
+        logger.info("Created %d carpool groups for run id=%d", created_count, sim_run.pk)

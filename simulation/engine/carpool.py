@@ -103,24 +103,31 @@ def match_carpools(
         # Sort drivers by departure_hour for deterministic results
         drivers.sort(key=lambda d: d["departure_hour"])
         unmatched_riders = list(riders)
+        zone_rejected_time = 0
+        zone_rejected_distance = 0
 
         for driver in drivers:
-            group_counter += 1
-            group_name = f"{_GROUP_PREFIX}-{group_counter:03d}"
-
-            matched_passengers = _find_compatible_riders(
+            matched_passengers, rt, rd = _find_compatible_riders(
                 driver=driver,
                 available_riders=unmatched_riders,
                 zone_distances=zone_distances,
                 max_detour_km=max_detour_km,
             )
+            zone_rejected_time += rt
+            zone_rejected_distance += rd
 
-            # Remove matched riders from the pool
+            # Only form a group when the driver has at least one passenger —
+            # solo-driver "groups" don't remove any vehicles from the road.
+            if not matched_passengers:
+                continue
+
             matched_ids = {p["id"] for p in matched_passengers}
             unmatched_riders = [
                 r for r in unmatched_riders if r["id"] not in matched_ids
             ]
 
+            group_counter += 1
+            group_name = f"{_GROUP_PREFIX}-{group_counter:03d}"
             group = _build_group(
                 group_name=group_name,
                 driver=driver,
@@ -136,22 +143,19 @@ def match_carpools(
                 driver["home_zone"],
             )
 
-        # Unmatched riders with vehicles can form single-driver groups
-        for rider in unmatched_riders:
-            if rider.get("has_vehicle", False) and rider.get("carpool_seats", 0) > 0:
-                group_counter += 1
-                group_name = f"{_GROUP_PREFIX}-{group_counter:03d}"
-                group = _build_group(
-                    group_name=group_name,
-                    driver=rider,
-                    passengers=[],
-                )
-                all_groups.append(group)
+        if drivers and unmatched_riders:
+            logger.debug(
+                "Zone %s: %d riders left unmatched "
+                "(rejected by departure-time=%d, by distance=%d)",
+                office_zone, len(unmatched_riders),
+                zone_rejected_time, zone_rejected_distance,
+            )
 
+    total_passengers = sum(len(g["passenger_ids"]) for g in all_groups)
     logger.info(
-        "Carpool matching complete: %d groups formed, %d total participants",
-        len(all_groups),
-        sum(1 + len(g["passenger_ids"]) for g in all_groups),
+        "Carpool matching complete: %d groups (drivers), "
+        "%d passengers, %d vehicles removed",
+        len(all_groups), total_passengers, total_passengers,
     )
 
     return all_groups
@@ -190,7 +194,7 @@ def _find_compatible_riders(
     available_riders: List[dict],
     zone_distances: Dict[Tuple[str, str], float],
     max_detour_km: float,
-) -> List[dict]:
+) -> Tuple[List[dict], int, int]:
     """
     Find riders compatible with the given driver.
 
@@ -198,34 +202,37 @@ def _find_compatible_riders(
     - Same office_zone (guaranteed by clustering)
     - Home zone within max_detour_km of driver's home zone
     - Departure hour within _MAX_DEPARTURE_DIFF_HOURS
+
+    Returns (matched_riders, rejected_by_time, rejected_by_distance) so the
+    caller can surface diagnostic counts when matching is sparse.
     """
     max_passengers = max(driver.get("carpool_seats", 1) - 1, 0)
     if max_passengers == 0:
-        return []
+        return [], 0, 0
 
     driver_home = driver["home_zone"]
     driver_departure = driver["departure_hour"]
 
-    # Score riders by proximity (closer = better)
-    scored_riders = []
+    rejected_time = 0
+    rejected_distance = 0
+    scored_riders: List[Tuple[float, dict]] = []
     for rider in available_riders:
-        # Check departure time compatibility
-        time_diff = abs(rider["departure_hour"] - driver_departure)
-        if time_diff > _MAX_DEPARTURE_DIFF_HOURS:
+        if abs(rider["departure_hour"] - driver_departure) > _MAX_DEPARTURE_DIFF_HOURS:
+            rejected_time += 1
             continue
 
-        # Check zone proximity
         distance = _get_zone_distance(
             zone_distances, driver_home, rider["home_zone"]
         )
-        if distance <= max_detour_km:
-            scored_riders.append((distance, rider))
+        if distance > max_detour_km:
+            rejected_distance += 1
+            continue
 
-    # Sort by distance (nearest first)
+        scored_riders.append((distance, rider))
+
     scored_riders.sort(key=lambda x: x[0])
-
-    # Take up to max_passengers
-    return [rider for _, rider in scored_riders[:max_passengers]]
+    matched = [rider for _, rider in scored_riders[:max_passengers]]
+    return matched, rejected_time, rejected_distance
 
 
 def _get_zone_distance(

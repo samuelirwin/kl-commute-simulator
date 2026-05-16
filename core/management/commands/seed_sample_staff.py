@@ -119,16 +119,17 @@ class Command(BaseCommand):
             logger.error("seed_sample_staff aborted: no zones in database")
             return
 
-        # Check if staff already exist (idempotency)
+        # Delete existing staff data for clean re-seeding
         existing_staff = StaffMember.objects.count()
         if existing_staff > 0:
-            self.stdout.write(self.style.SUCCESS(
-                f"  StaffMember: {existing_staff} records already exist, skipping staff creation"
-            ))
-            logger.info("Skipping staff creation: %d StaffMember records already exist", existing_staff)
-        else:
-            self._seed_departments(companies)
-            self._seed_staff_members(companies, zones)
+            StaffSchedule.objects.all().delete()
+            StaffMember.objects.all().delete()
+            Department.objects.all().delete()
+            self.stdout.write(f"  Cleared {existing_staff} existing staff + schedules + departments")
+            logger.info("Cleared existing staff data for re-seed: %d staff deleted", existing_staff)
+
+        self._seed_departments(companies)
+        self._seed_staff_members(companies, zones)
 
         # Create schedules if a completed simulation run exists
         self._seed_staff_schedules(companies)
@@ -329,17 +330,11 @@ class Command(BaseCommand):
             logger.warning("Skipping StaffSchedule: no completed SimulationRun")
             return
 
-        # Check if schedules already exist for this run
-        existing_count = StaffSchedule.objects.filter(simulation_run=sim_run).count()
-        if existing_count > 0:
-            self.stdout.write(self.style.SUCCESS(
-                f"  StaffSchedule: {existing_count} records already exist for this run, skipping"
-            ))
-            logger.info(
-                "Skipping StaffSchedule generation: %d records exist for run id=%d",
-                existing_count, sim_run.pk,
-            )
-            return
+        # Clear old schedules for this run to allow re-seeding
+        old_count = StaffSchedule.objects.filter(simulation_run=sim_run).count()
+        if old_count > 0:
+            StaffSchedule.objects.filter(simulation_run=sim_run).delete()
+            logger.info("Cleared %d old StaffSchedule records for run id=%d", old_count, sim_run.pk)
 
         # Pre-fetch CompanySimResult for assigned start times
         sim_results = {
@@ -347,9 +342,9 @@ class Command(BaseCommand):
             for csr in CompanySimResult.objects.filter(simulation_run=sim_run)
         }
 
-        # Pre-fetch all zone coordinates for commute estimation
+        # Pre-fetch all zone lat/lon for commute estimation
         zone_coords = {
-            z.code: (z.map_x, z.map_y) for z in Zone.objects.all()
+            z.code: (z.latitude, z.longitude) for z in Zone.objects.all()
         }
 
         rng = random.Random(42)
@@ -435,26 +430,31 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
     def _estimate_commute(self, home_zone_code, office_zone_code, zone_coords):
         """
-        Estimate commute time in minutes based on Euclidean distance between
-        zone map coordinates. Maps distance to a 20-80 minute range.
+        Estimate commute time in minutes based on lat/lon distance between zones.
+
+        Uses flat-earth approximation (adequate for KL's ~50km radius) to get
+        straight-line km, then applies a 1.4x road factor and assumes 25 km/h
+        average speed during peak traffic.
         """
         if not office_zone_code or home_zone_code not in zone_coords or office_zone_code not in zone_coords:
-            return 45.0  # Default mid-range commute
+            return 45.0
 
-        hx, hy = zone_coords[home_zone_code]
-        ox, oy = zone_coords[office_zone_code]
-        distance = math.sqrt((hx - ox) ** 2 + (hy - oy) ** 2)
+        h_lat, h_lon = zone_coords[home_zone_code]
+        o_lat, o_lon = zone_coords[office_zone_code]
 
-        # Max possible Euclidean distance on 0-1 map is ~1.41
-        # Scale to 20-80 minute range
-        min_commute = 20.0
-        max_commute = 80.0
-        max_distance = 1.0  # Practical maximum for KV zones
+        # Flat-earth distance in km (111 km per degree lat, ~96.6 km per degree lon at 3N)
+        dlat_km = (o_lat - h_lat) * 111.0
+        dlon_km = (o_lon - h_lon) * 96.6
+        straight_line_km = math.sqrt(dlat_km ** 2 + dlon_km ** 2)
 
-        normalized = min(distance / max_distance, 1.0)
-        commute = min_commute + normalized * (max_commute - min_commute)
+        # Road distance ~1.4x straight line, avg speed 25 km/h in KL peak
+        road_km = straight_line_km * 1.4
+        commute_min = (road_km / 25.0) * 60.0
 
-        return round(commute, 1)
+        # Clamp to 15-90 minute range
+        commute_min = max(15.0, min(90.0, commute_min))
+
+        return round(commute_min, 1)
 
     # ------------------------------------------------------------------
     # Helper: subtract minutes from a time object

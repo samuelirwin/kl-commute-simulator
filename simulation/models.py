@@ -36,6 +36,30 @@ class SimulationRun(models.Model):
     wfh_sector_cap_pct = models.PositiveIntegerField(default=40, help_text="Max % of any sector WFH same day")
     carpool_max_detour_km = models.FloatField(default=5.0)
     transit_frequency_boost_pct = models.PositiveIntegerField(default=20)
+    workforce_multiplier = models.FloatField(
+        default=1.0,
+        help_text="Scale factor applied to company total_staff for simulation",
+    )
+    carpool_willingness_pct = models.PositiveIntegerField(
+        default=35,
+        help_text="Percentage of staff willing to carpool as driver or rider",
+    )
+    wfh_eligibility_pct = models.PositiveIntegerField(
+        default=80,
+        help_text="Percentage of staff eligible for WFH",
+    )
+    car_mode_share_pct = models.FloatField(
+        default=67.0,
+        help_text="Percentage of commuters using private car",
+    )
+    motorcycle_mode_share_pct = models.FloatField(
+        default=17.0,
+        help_text="Percentage of commuters using motorcycle",
+    )
+    public_transit_share_pct = models.FloatField(
+        default=12.0,
+        help_text="Percentage of commuters using public transit",
+    )
 
     # Aggregated results (populated after simulation completes)
     peak_congestion_before = models.FloatField(null=True, blank=True)

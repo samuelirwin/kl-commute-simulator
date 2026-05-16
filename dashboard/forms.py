@@ -43,6 +43,30 @@ class SimulationParameterForm(forms.Form):
         min_value=0, max_value=50, initial=20,
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
+    workforce_multiplier = forms.FloatField(
+        min_value=0.1, max_value=10.0, initial=1.0,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.1"}),
+    )
+    car_mode_share_pct = forms.FloatField(
+        min_value=0, max_value=100, initial=67.0,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "1"}),
+    )
+    motorcycle_mode_share_pct = forms.FloatField(
+        min_value=0, max_value=100, initial=17.0,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "1"}),
+    )
+    public_transit_share_pct = forms.FloatField(
+        min_value=0, max_value=100, initial=12.0,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "1"}),
+    )
+    carpool_willingness_pct = forms.IntegerField(
+        min_value=0, max_value=100, initial=35,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    wfh_eligibility_pct = forms.IntegerField(
+        min_value=0, max_value=100, initial=80,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
 
     def clean(self):
         cleaned = super().clean()
@@ -50,4 +74,14 @@ class SimulationParameterForm(forms.Form):
         end = cleaned.get("stagger_window_end")
         if start and end and start >= end:
             raise forms.ValidationError("Stagger window start must be before end.")
+
+        car = cleaned.get("car_mode_share_pct", 0) or 0
+        mcy = cleaned.get("motorcycle_mode_share_pct", 0) or 0
+        pub = cleaned.get("public_transit_share_pct", 0) or 0
+        total = car + mcy + pub
+        if total > 100:
+            raise forms.ValidationError(
+                f"Modal split total is {total}% — must not exceed 100%."
+            )
+
         return cleaned

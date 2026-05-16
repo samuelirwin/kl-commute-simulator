@@ -45,7 +45,7 @@
     fetchApi('chart', function(data) { if (window.Charts) window.Charts.init(data); });
     fetchApi('companies', function(data) { state.companies = data.companies; renderCompanyTable(); });
     fetchApi('stagger', function(data) { state.staggerData = data.slots; renderStagger(); });
-    fetchApi('carpools', function(data) { state.carpoolData = data.groups; renderCarpools(); });
+    fetchApi('carpools', function(data) { state.carpoolData = data; renderCarpools(); });
     fetchApi('wfh', function(data) { state.wfhData = data; renderWFH(); });
     fetchApi('transit', function(data) { state.transitData = data.lines; renderTransit(); });
   }
@@ -101,21 +101,33 @@
     if (cardEl && cardColor) cardEl.style.setProperty('--card-color', cardColor);
   }
 
-  // Company Table
+  // Company Table — shows WFH eligibility breakdown in After scenario
   function renderCompanyTable() {
     var tbody = document.getElementById('companyTbody');
     if (!tbody || !state.companies) return;
+    var isAfter = state.scenario === 'after';
     tbody.innerHTML = state.companies.map(function(c) {
-      var load = state.scenario === 'before' ? c.load_before : c.load_after;
+      var load = isAfter ? c.load_after : c.load_before;
       var pct = Math.round(load * 100);
       var col = load > 0.7 ? '#ff4444' : load > 0.5 ? '#ff8c00' : load > 0.3 ? '#ffd700' : '#39ff7e';
       var startTime = c.assigned_start || '08:00';
-      var mode = state.scenario === 'after'
+      var mode = isAfter
         ? '<span class="mode-badge" style="background:rgba(57,255,126,0.1);color:#39ff7e">' + startTime + '</span>'
         : '<span class="mode-badge" style="background:rgba(255,68,68,0.1);color:#ff4444">' + c.default_start + '</span>';
+
+      // Staff column: show eligible/on-site breakdown in After mode
+      var staffCol = '<span style="font-family:\'Space Mono\',monospace;font-size:12px">' + c.staff.toLocaleString() + '</span>';
+      if (isAfter && c.wfh_eligible !== undefined) {
+        staffCol += '<div style="font-size:9px;margin-top:2px">' +
+          '<span style="color:var(--green)">' + c.wfh_count + ' WFH</span>' +
+          '<span style="color:var(--muted)"> / </span>' +
+          '<span style="color:var(--red)">' + c.on_site_only + ' on-site</span>' +
+          '</div>';
+      }
+
       return '<tr>' +
         '<td><div style="font-weight:600;font-size:12px">' + c.name + '</div><div style="font-size:10px;color:var(--muted)">' + c.sector + '</div></td>' +
-        '<td style="font-family:\'Space Mono\',monospace;font-size:12px">' + c.staff.toLocaleString() + '</td>' +
+        '<td>' + staffCol + '</td>' +
         '<td>' + mode + '</td>' +
         '<td><div class="traffic-bar"><div class="traffic-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
         '<div style="font-size:10px;color:' + col + ';margin-top:2px">' + pct + '%</div></td>' +
@@ -150,36 +162,126 @@
     }).join('');
   }
 
-  // Carpools
+  // Carpools — aggregate hub-level view for government dashboard
   function renderCarpools() {
     var el = document.getElementById('carpoolList');
     if (!el || !state.carpoolData) return;
-    var colors = ['#00d4ff', '#ff6b35', '#39ff7e', '#ffd166', '#a855f7'];
-    var icons = ['\uD83D\uDE97', '\uD83D\uDE99', '\uD83D\uDE97', '\uD83D\uDE99', '\uD83D\uDE97'];
-    el.innerHTML = state.carpoolData.slice(0, 6).map(function(c, i) {
-      return '<div class="carpool-item">' +
-        '<div class="carpool-avatar" style="background:' + colors[i % 5] + '22;color:' + colors[i % 5] + '">' + icons[i % 5] + '</div>' +
-        '<div class="carpool-info">' +
-        '<div class="carpool-name">' + c.name + '</div>' +
-        '<div class="carpool-route">' + c.route + '</div>' +
-        '</div>' +
-        '<div class="carpool-seats">' + c.members + '/' + c.max_seats + '</div>' +
-        '</div>';
-    }).join('');
+    var d = state.carpoolData;
+    var isAfter = state.scenario === 'after';
+    var colors = ['#00d4ff', '#39ff7e', '#a855f7', '#ffd166', '#ff6b35', '#e63946', '#2196f3', '#ff9800'];
+
+    // Summary stats bar
+    var summaryHtml = '<div style="padding:8px 10px;margin-bottom:8px;background:rgba(0,212,255,0.05);border:1px solid var(--border);border-radius:6px">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
+      '<div><div style="font-size:9px;color:var(--muted)">Total Groups</div>' +
+      '<div style="font-size:16px;font-weight:700;font-family:\'Space Mono\',monospace;color:' + (isAfter ? 'var(--green)' : 'var(--muted)') + '">' +
+      (isAfter ? d.total_groups.toLocaleString() : '0') + '</div></div>' +
+      '<div><div style="font-size:9px;color:var(--muted)">Participants</div>' +
+      '<div style="font-size:16px;font-weight:700;font-family:\'Space Mono\',monospace;color:' + (isAfter ? 'var(--accent)' : 'var(--muted)') + '">' +
+      (isAfter ? d.total_participants.toLocaleString() : '0') + '</div></div>' +
+      '<div><div style="font-size:9px;color:var(--muted)">Vehicles Saved</div>' +
+      '<div style="font-size:16px;font-weight:700;font-family:\'Space Mono\',monospace;color:' + (isAfter ? 'var(--green)' : 'var(--muted)') + '">' +
+      (isAfter ? d.vehicles_saved.toLocaleString() : '0') + '</div></div>' +
+      '<div><div style="font-size:9px;color:var(--muted)">Avg Occupancy</div>' +
+      '<div style="font-size:16px;font-weight:700;font-family:\'Space Mono\',monospace;color:' + (isAfter ? '#ffd166' : 'var(--muted)') + '">' +
+      (isAfter ? d.avg_occupancy + '/seat' : '—') + '</div></div>' +
+      '</div></div>';
+
+    // Hub breakdown
+    var hubs = d.hubs || [];
+    var maxParticipants = 1;
+    hubs.forEach(function(h) { if (h.participants > maxParticipants) maxParticipants = h.participants; });
+
+    var hubsHtml = '';
+    if (isAfter && hubs.length > 0) {
+      hubsHtml = '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:600">By Hub Location</div>' +
+        hubs.slice(0, 6).map(function(h, i) {
+          var pct = Math.round(h.participants / maxParticipants * 100);
+          var color = colors[i % colors.length];
+          return '<div style="margin-bottom:8px">' +
+            '<div style="display:flex;justify-content:space-between;margin-bottom:3px">' +
+            '<span style="font-size:11px;color:var(--text)">' + h.hub + '</span>' +
+            '<span style="font-size:10px;font-family:\'Space Mono\',monospace;color:' + color + '">' +
+            h.groups + ' groups / ' + h.participants + ' people</span>' +
+            '</div>' +
+            '<div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden">' +
+            '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 0.8s ease"></div>' +
+            '</div>' +
+            '<div style="font-size:9px;color:var(--muted);margin-top:2px">' +
+            h.zone + ' — ' + h.vehicles_saved + ' vehicles saved</div>' +
+            '</div>';
+        }).join('');
+    } else if (!isAfter) {
+      hubsHtml = '<div style="text-align:center;padding:12px;color:var(--muted);font-size:11px">No carpooling active — all single-occupancy trips</div>';
+    }
+
+    // Sector breakdown (compact)
+    var sectors = d.sectors || [];
+    var sectorHtml = '';
+    if (isAfter && sectors.length > 0) {
+      sectorHtml = '<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:6px">' +
+        '<div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600">By Sector</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:4px">' +
+        sectors.slice(0, 6).map(function(s, i) {
+          var color = colors[i % colors.length];
+          return '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:' + color + '15;color:' + color + ';border:1px solid ' + color + '33">' +
+            s.sector + ' ' + s.participants + '</span>';
+        }).join('') +
+        '</div></div>';
+    }
+
+    el.innerHTML = summaryHtml + hubsHtml + sectorHtml;
   }
 
-  // WFH Calendar
+  // WFH Calendar — shows eligibility breakdown per company
   function renderWFH() {
     var el = document.getElementById('wfhCalendar');
     if (!el || !state.wfhData) return;
     var days = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
     var companies = state.wfhData.companies || [];
     var wfhToday = state.wfhData.wfh_today || 0;
+    var totalStaff = state.wfhData.total_staff || 0;
+    var wfhEligible = state.wfhData.wfh_eligible || 0;
+    var bizCritical = state.wfhData.business_critical || 0;
+    var isAfter = state.scenario === 'after';
 
-    el.innerHTML = '<div class="wfh-companies">' +
+    // Workforce breakdown summary bar
+    var summaryHtml = '<div style="margin-bottom:10px;padding:8px 10px;background:rgba(0,212,255,0.05);border:1px solid var(--border);border-radius:6px">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:6px">' +
+      '<span style="font-size:10px;color:var(--muted)">Total Workforce</span>' +
+      '<span style="font-size:10px;font-family:\'Space Mono\',monospace;color:var(--text)">' + totalStaff.toLocaleString() + '</span>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
+      '<span style="font-size:10px;color:var(--green)">WFH Eligible</span>' +
+      '<span style="font-size:10px;font-family:\'Space Mono\',monospace;color:var(--green)">' + wfhEligible.toLocaleString() +
+      ' (' + (totalStaff > 0 ? Math.round(wfhEligible / totalStaff * 100) : 0) + '%)</span>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:6px">' +
+      '<span style="font-size:10px;color:var(--red)">On-Site Required</span>' +
+      '<span style="font-size:10px;font-family:\'Space Mono\',monospace;color:var(--red)">' + bizCritical.toLocaleString() +
+      ' (' + (totalStaff > 0 ? Math.round(bizCritical / totalStaff * 100) : 0) + '%)</span>' +
+      '</div>' +
+      // Stacked bar showing eligible vs on-site
+      '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;display:flex">' +
+      '<div style="width:' + (totalStaff > 0 ? (wfhEligible / totalStaff * 100) : 0) + '%;background:var(--green);border-radius:3px 0 0 3px"></div>' +
+      '<div style="width:' + (totalStaff > 0 ? (bizCritical / totalStaff * 100) : 0) + '%;background:var(--red);border-radius:0 3px 3px 0"></div>' +
+      '</div>' +
+      (isAfter
+        ? '<div style="margin-top:6px;font-size:10px;color:var(--green);font-weight:600">' + wfhToday.toLocaleString() + ' of ' + wfhEligible.toLocaleString() + ' eligible staff WFH today</div>'
+        : '<div style="margin-top:6px;font-size:10px;color:var(--muted)">No WFH active — all staff commuting</div>') +
+      '</div>';
+
+    // Per-company calendar with eligible/on-site counts
+    var calendarHtml = '<div class="wfh-companies">' +
       companies.slice(0, 6).map(function(co) {
+        var eligiblePct = co.total_staff > 0 ? Math.round(co.wfh_eligible / co.total_staff * 100) : 0;
         return '<div class="wfh-company-row">' +
-          '<div class="wfh-co-name">' + co.name + '</div>' +
+          '<div class="wfh-co-name">' + co.name +
+          '<div style="font-size:9px;color:var(--muted)">' +
+          (isAfter
+            ? co.wfh_count + '/' + co.wfh_eligible + ' eligible WFH'
+            : co.on_site_only + ' must be on-site') +
+          '</div></div>' +
           '<div class="wfh-dots">' +
           co.days.map(function(d, i) {
             var cls = d === 'H' ? 'h' : 'o';
@@ -187,14 +289,16 @@
           }).join('') +
           '</div></div>';
       }).join('') +
-      '</div>' +
-      '<div style="margin-top:8px;display:flex;gap:12px;font-size:10px;color:var(--muted)">' +
+      '</div>';
+
+    // Legend
+    var legendHtml = '<div style="margin-top:8px;display:flex;gap:12px;font-size:10px;color:var(--muted)">' +
       '<span><span style="color:var(--accent)">\u25A0</span> Office</span>' +
       '<span><span style="color:var(--green)">\u25A0</span> WFH</span>' +
-      (state.scenario === 'after'
-        ? '<span style="color:var(--green);font-weight:700">' + wfhToday.toLocaleString() + ' off roads today \u2713</span>'
-        : '<span style="color:var(--red)">All in-office</span>') +
+      '<span><span style="color:var(--red)">\u25A0</span> On-Site Required</span>' +
       '</div>';
+
+    el.innerHTML = summaryHtml + calendarHtml + legendHtml;
   }
 
   // Transit
@@ -223,6 +327,7 @@
     updateKPIs();
     renderCompanyTable();
     renderStagger();
+    renderCarpools();
     renderWFH();
     renderTransit();
     if (window.TrafficMap) window.TrafficMap.setScenario(s);
@@ -259,6 +364,7 @@
 
   // Run new simulation
   function runSimulation(formData) {
+    var btn = document.getElementById('runSimBtn');
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/dashboard/simulate/');
     xhr.setRequestHeader('X-CSRFToken', getCSRFToken());
@@ -266,17 +372,32 @@
       if (xhr.status === 200) {
         try {
           var result = JSON.parse(xhr.responseText);
-          if (result.run_id) {
-            state.runId = result.run_id;
-            loadDashboardData();
-          }
           if (result.redirect) {
             window.location.href = result.redirect;
+          } else if (result.run_id) {
+            state.runId = result.run_id;
+            loadDashboardData();
+            if (btn) { btn.disabled = false; btn.textContent = 'Run Simulation'; }
           }
         } catch (e) {
           console.error('Simulation response error:', e);
+          if (btn) { btn.disabled = false; btn.textContent = 'Run Simulation'; }
         }
+      } else {
+        // Show error feedback
+        try {
+          var err = JSON.parse(xhr.responseText);
+          var msg = err.error || JSON.stringify(err.errors) || 'Simulation failed';
+          alert('Simulation error: ' + msg);
+        } catch (e) {
+          alert('Simulation failed (HTTP ' + xhr.status + ')');
+        }
+        if (btn) { btn.disabled = false; btn.textContent = 'Run Simulation'; }
       }
+    };
+    xhr.onerror = function() {
+      alert('Network error — could not reach server');
+      if (btn) { btn.disabled = false; btn.textContent = 'Run Simulation'; }
     };
     xhr.send(formData);
   }

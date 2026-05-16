@@ -17,6 +17,10 @@ from django.utils import timezone
 
 from simulation.engine.carpool import match_carpools
 from simulation.engine.co2 import calculate_co2_reduction
+from simulation.engine.routing import (
+    build_path_lookup,
+    compute_od_commute_time_min,
+)
 from simulation.engine.stagger import optimize_stagger
 from simulation.engine.traffic_sim import generate_time_slots, run_traffic_simulation
 from simulation.engine.wfh import plan_wfh_rotation
@@ -64,15 +68,64 @@ def execute_simulation(run_id: int) -> None:
             _load_reference_data()
         )
 
+        # Apply workforce multiplier from run parameters
+        multiplier = run.workforce_multiplier or 1.0
+        if multiplier != 1.0:
+            for c in companies:
+                c["total_staff"] = max(1, int(c["total_staff"] * multiplier))
+            logger.info(
+                "Workforce multiplier %.1fx applied to %d companies",
+                multiplier, len(companies),
+            )
+
+        # Cap each company's WFH days at the run-level policy ceiling so the
+        # slider actually affects how much WFH the planner can allocate.
+        wfh_cap = run.wfh_max_days
+        if wfh_cap is not None:
+            for c in companies:
+                c["wfh_days_per_week"] = min(c["wfh_days_per_week"], wfh_cap)
+            logger.info("WFH max-days cap applied: %d days/week", wfh_cap)
+
+        # Override modal split from run parameters if provided
+        _apply_modal_split_overrides(run, modal_split)
+
+        # Pre-compute the per-company WFH fraction once so every downstream
+        # consumer uses the same formula (planner, traffic sim, results saver,
+        # totals). 0.6 is the hard cap — even with 100% eligibility you can't
+        # have more than 60% of staff WFH on any single day.
+        wfh_elig_pct = run.wfh_eligibility_pct or 80
+        eligibility = wfh_elig_pct / 100.0
+        for c in companies:
+            wfh_days = c.get("wfh_days_per_week", 0)
+            c["wfh_fraction"] = min((wfh_days / 5.0) * eligibility, 0.6)
+
+        # Apply carpool willingness rate: among vehicle owners, the run's
+        # willingness % decides who's actually willing this run. Seeded by
+        # run.id so re-running the same configuration is deterministic.
+        carpool_will_pct = run.carpool_willingness_pct or 35
+        _apply_carpool_willingness(staff_list, carpool_will_pct, run.id)
+
         time_slots = generate_time_slots()
         day_of_week = 1  # Default to Tuesday for representative weekday
 
+        # Build the OD breakdown (per-company home-zone distribution) and the
+        # corridor path lookup once. Both are used by the traffic simulator
+        # to route every trip onto the actual corridors it traverses.
+        od_breakdown = _build_od_breakdown(staff_list)
+        zone_codes = _collect_zone_codes(corridors)
+        corridor_paths = build_path_lookup(corridors, zone_codes)
+
         logger.info(
-            "Data loaded: %d corridors, %d companies, %d staff, %d modes",
+            "Data loaded: %d corridors, %d companies, %d staff, %d modes, "
+            "workforce_multiplier=%.1f, modal=[car=%.0f%% mcy=%.0f%% pub=%.0f%%]",
             len(corridors),
             len(companies),
             len(staff_list),
             len(modal_split),
+            multiplier,
+            modal_split.get("CAR", {}).get("share_pct", 0),
+            modal_split.get("MCY", {}).get("share_pct", 0),
+            modal_split.get("PUB", {}).get("share_pct", 0),
         )
 
         # Step 2: Stagger optimization
@@ -94,6 +147,15 @@ def execute_simulation(run_id: int) -> None:
                 staff_list, zone_distances, run
             )
 
+        # Build the "after" modal split: when transit boost is on, shift some
+        # car commuters to public transit using a 0.4 ridership-vs-frequency
+        # elasticity (mid-range of empirical urban-transit studies).
+        after_modal_split = modal_split
+        if run.enable_transit_boost and run.transit_frequency_boost_pct:
+            after_modal_split = _apply_transit_boost(
+                modal_split, run.transit_frequency_boost_pct
+            )
+
         # Step 5: "Before" simulation (status quo)
         logger.info("Running 'before' scenario simulation...")
         before_result = run_traffic_simulation(
@@ -104,6 +166,8 @@ def execute_simulation(run_id: int) -> None:
             wfh_plan={},           # No WFH in baseline
             carpool_groups=[],     # No carpools in baseline
             day_of_week=day_of_week,
+            od_breakdown=od_breakdown,
+            corridor_paths=corridor_paths,
         )
 
         # Step 6: "After" simulation (with optimizations)
@@ -111,11 +175,13 @@ def execute_simulation(run_id: int) -> None:
         after_result = run_traffic_simulation(
             corridors=corridors,
             companies=companies,
-            modal_split=modal_split,
+            modal_split=after_modal_split,
             stagger_plan=stagger_plan,
             wfh_plan=wfh_plan,
             carpool_groups=carpool_groups,
             day_of_week=day_of_week,
+            od_breakdown=od_breakdown,
+            corridor_paths=corridor_paths,
         )
 
         # Step 7: CO2 calculation
@@ -154,19 +220,41 @@ def execute_simulation(run_id: int) -> None:
         )
         _save_carpool_groups_to_db(run, carpool_groups)
 
-        # Update run aggregate results
+        # Derive the door-to-desk commute by summing actual BPR times along
+        # each OD pair's corridor path, weighted by trip volume. Plus a flat
+        # 15-min overhead for parking + last-mile that the corridor model
+        # can't see. This replaces the old `raw * 3.5 + 15` magic multiplier
+        # — every change in the After scenario now traces back to a real
+        # network effect, not a calibration constant.
+        sim_commute_before = round(compute_od_commute_time_min(
+            od_demand=before_result["od_demand"],
+            corridor_paths=corridor_paths,
+            travel_time_matrix=before_result["travel_time_matrix"],
+            corridor_codes=before_result["corridor_codes"],
+        ), 1)
+        sim_commute_after = round(compute_od_commute_time_min(
+            od_demand=after_result["od_demand"],
+            corridor_paths=corridor_paths,
+            travel_time_matrix=after_result["travel_time_matrix"],
+            corridor_codes=after_result["corridor_codes"],
+        ), 1)
+
+        sim_peak_before = before_result["summary"]["peak_vehicles"]
+        sim_peak_after = after_result["summary"]["peak_vehicles"]
+
+        # Update run aggregate results and save everything
         run.peak_congestion_before = before_result["summary"]["peak_congestion"]
         run.peak_congestion_after = after_result["summary"]["peak_congestion"]
-        run.avg_commute_before = before_result["summary"]["avg_travel_time_min"]
-        run.avg_commute_after = after_result["summary"]["avg_travel_time_min"]
-        run.peak_vehicles_before = before_result["summary"]["peak_vehicles"]
-        run.peak_vehicles_after = after_result["summary"]["peak_vehicles"]
+        run.avg_commute_before = sim_commute_before
+        run.avg_commute_after = sim_commute_after
+        run.peak_vehicles_before = sim_peak_before
+        run.peak_vehicles_after = sim_peak_after
         run.co2_saved_tonnes = co2_result["total_tonnes"]
         run.total_carpool_groups = len(carpool_groups)
         run.total_wfh_today = _count_wfh_today(companies, wfh_plan, day_of_week)
         run.completed_at = timezone.now()
-
-        _update_status(run, "CMP")
+        run.status = "CMP"
+        run.save()
 
         logger.info(
             "Simulation run #%d completed: congestion %.4f -> %.4f, "
@@ -185,6 +273,109 @@ def execute_simulation(run_id: int) -> None:
         )
         _update_status(run, "ERR")
         raise
+
+
+_TRANSIT_FREQUENCY_ELASTICITY = 0.4
+
+
+def _apply_transit_boost(modal_split: dict, freq_boost_pct: float) -> dict:
+    """
+    Return a copy of the modal split with car-to-transit substitution applied.
+
+    Shifts (current PUB share) * freq_boost * elasticity percentage points from
+    car to public transit. CO2 and corridor demand both pick up the change
+    automatically since the simulator reads shares from this dict.
+    """
+    boosted = {k: dict(v) for k, v in modal_split.items()}
+    pub_share = boosted.get("PUB", {}).get("share_pct", 0)
+    car_share = boosted.get("CAR", {}).get("share_pct", 0)
+    if pub_share <= 0 or car_share <= 0:
+        return boosted
+
+    shift = pub_share * (freq_boost_pct / 100.0) * _TRANSIT_FREQUENCY_ELASTICITY
+    shift = min(shift, car_share)  # Don't take more than CAR has
+
+    boosted["PUB"]["share_pct"] = pub_share + shift
+    boosted["CAR"]["share_pct"] = car_share - shift
+
+    logger.info(
+        "Transit boost: +%.0f%% frequency -> %.2f pct-pt shift from CAR to PUB "
+        "(CAR %.1f%%->%.1f%%, PUB %.1f%%->%.1f%%)",
+        freq_boost_pct, shift,
+        car_share, boosted["CAR"]["share_pct"],
+        pub_share, boosted["PUB"]["share_pct"],
+    )
+    return boosted
+
+
+_CAR_CARPOOL_SEATS = 4  # Driver + 3 passengers in a typical sedan
+
+
+def _apply_carpool_willingness(
+    staff_list: List[dict], willingness_pct: int, seed: int
+) -> None:
+    """
+    Set willing_to_carpool across ALL staff so the configured percentage
+    participate as either driver or passenger this run.
+
+    Drivers are car-using staff with seats; riders are everyone else who's
+    willing — including non-vehicle owners and motorcycle riders (who can't
+    drive a carpool but can ride in one). Motorcyclists are not drivers
+    because a motorbike has at most one pillion. Seeded for reproducibility.
+    """
+    import random
+
+    rng = random.Random(seed)
+    threshold = max(0, min(100, willingness_pct)) / 100.0
+    drivers = 0
+    riders = 0
+    for s in staff_list:
+        willing = rng.random() < threshold
+        s["willing_to_carpool"] = willing
+        if willing and s.get("primary_transport") == "CAR":
+            s["carpool_seats"] = _CAR_CARPOOL_SEATS
+            drivers += 1
+        else:
+            s["carpool_seats"] = 0
+            if willing:
+                riders += 1
+    logger.info(
+        "Carpool willingness applied: %d/%d staff willing (%d%% target) — "
+        "%d potential drivers, %d potential riders",
+        drivers + riders, len(staff_list), willingness_pct, drivers, riders,
+    )
+
+
+def _apply_modal_split_overrides(run, modal_split: dict) -> None:
+    """Override modal split percentages from run parameters.
+
+    EHL absorbs whatever's left after CAR + MCY + PUB so the four modes
+    always sum to 100% (clamped to 0 if the form sliders already cover it).
+    """
+    if run.car_mode_share_pct is not None and "CAR" in modal_split:
+        modal_split["CAR"]["share_pct"] = run.car_mode_share_pct
+
+    if run.motorcycle_mode_share_pct is not None and "MCY" in modal_split:
+        modal_split["MCY"]["share_pct"] = run.motorcycle_mode_share_pct
+
+    if run.public_transit_share_pct is not None and "PUB" in modal_split:
+        modal_split["PUB"]["share_pct"] = run.public_transit_share_pct
+
+    if "EHL" in modal_split:
+        covered = (
+            modal_split.get("CAR", {}).get("share_pct", 0)
+            + modal_split.get("MCY", {}).get("share_pct", 0)
+            + modal_split.get("PUB", {}).get("share_pct", 0)
+        )
+        modal_split["EHL"]["share_pct"] = max(0.0, 100.0 - covered)
+
+    logger.info(
+        "Modal split overrides applied: CAR=%.0f%%, MCY=%.0f%%, PUB=%.0f%%, EHL=%.0f%%",
+        modal_split.get("CAR", {}).get("share_pct", 0),
+        modal_split.get("MCY", {}).get("share_pct", 0),
+        modal_split.get("PUB", {}).get("share_pct", 0),
+        modal_split.get("EHL", {}).get("share_pct", 0),
+    )
 
 
 def _update_status(run, status: str) -> None:
@@ -240,8 +431,10 @@ def _load_reference_data() -> tuple:
         staff_list.append({
             "id": s.employee_id,
             "name": s.name,
+            "company_code": s.company.code,
             "home_zone": s.home_zone.code,
             "office_zone": s.company.office_zone.code,
+            "primary_transport": s.primary_transport,
             "has_vehicle": s.has_vehicle,
             "willing_to_carpool": s.willing_to_carpool,
             "carpool_seats": s.carpool_seats,
@@ -296,6 +489,18 @@ def _compute_zone_distances() -> Dict[tuple, float]:
     return distances
 
 
+# Realistic per-sector start-time windows for KL. These reflect operational
+# constraints (Government circular jam-bekerja, banking hall opening times,
+# manufacturing shift structure) and bound what the stagger optimizer can do.
+_DEFAULT_SECTOR_CONSTRAINTS: Dict[str, Tuple[float, float]] = {
+    "Government": (7.5, 9.0),     # JPA circulars mandate ~08:00 ± 1h
+    "Banking": (7.5, 9.5),        # Branch ops bound morning availability
+    "Manufacturing": (6.5, 9.0),  # Multi-shift, early starts common
+    "Construction": (6.5, 8.5),   # Outdoor work avoids midday heat
+    "Aviation": (6.0, 10.5),      # 24/7 ops give wide flex
+}
+
+
 def _run_stagger_optimization(
     companies: List[dict],
     time_slots: List[float],
@@ -303,10 +508,14 @@ def _run_stagger_optimization(
     run,
 ) -> Dict[str, float]:
     """Run the stagger optimizer with run parameters."""
-    # Build capacity array (sum of all corridor capacities per slot)
-    total_capacity_per_hour = sum(c["capacity_vph"] for c in corridors)
-    slot_duration = 0.25  # 15-minute slots
-    capacities = [total_capacity_per_hour * slot_duration] * len(time_slots)
+    # Capacity = target system throughput per slot. Spreading total staff
+    # evenly across the stagger window at 80% fill gives the optimizer a
+    # tiebreak signal favoring slots with spare capacity.
+    total_staff = sum(c["total_staff"] for c in companies)
+    window_hours = 3.5  # 07:00-10:30 default span
+    slots_in_window = window_hours / 0.25  # 14 sim slots
+    target_per_slot = total_staff / slots_in_window
+    capacities = [target_per_slot * 0.8] * len(time_slots)
 
     # Parse stagger window from run configuration
     window_start = 7.0
@@ -322,15 +531,12 @@ def _run_stagger_optimization(
             + run.stagger_window_end.minute / 60.0
         )
 
-    logger.info(
-        "Running stagger optimizer: window=%.1f-%.1fh", window_start, window_end
-    )
-
     return optimize_stagger(
         companies=companies,
         time_slots=time_slots,
         capacities=capacities,
         window=(window_start, window_end),
+        sector_constraints=_DEFAULT_SECTOR_CONSTRAINTS,
     )
 
 
@@ -453,11 +659,14 @@ def _save_company_results(
         m = int(round((start_hour - h) * 60))
         assigned_time = dt_time(h, m)
 
-        # WFH count for today
+        # WFH count for today — uses runner-precomputed fraction so policy
+        # cap and eligibility slider both feed through.
         is_wfh_today = day_of_week in wfh_plan.get(code, [])
-        wfh_count = (
-            int(company_data["total_staff"] * 0.2) if is_wfh_today else 0
-        )
+        if is_wfh_today:
+            wfh_fraction = company_data.get("wfh_fraction", 0)
+            wfh_count = int(company_data["total_staff"] * wfh_fraction)
+        else:
+            wfh_count = 0
 
         staff_before = company_data["total_staff"]
         staff_after = staff_before - wfh_count
@@ -556,8 +765,37 @@ def _count_wfh_today(
     for company in companies:
         code = company["code"]
         if day_of_week in wfh_plan.get(code, []):
-            total += int(company["total_staff"] * 0.2)
+            wfh_fraction = company.get("wfh_fraction", 0)
+            total += int(company["total_staff"] * wfh_fraction)
     return total
+
+
+def _build_od_breakdown(
+    staff_list: List[dict],
+) -> Dict[str, Dict[str, int]]:
+    """
+    Bin staff by company and home zone.
+
+    Returns company_code -> {home_zone: staff_count}. The traffic simulator
+    uses this to scale each company's demand across the home zones it
+    actually draws from, instead of assuming all staff start from a single
+    abstract origin.
+    """
+    from collections import defaultdict
+    breakdown: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for s in staff_list:
+        breakdown[s["company_code"]][s["home_zone"]] += 1
+    # Flatten inner defaultdicts so callers don't get surprise zero entries
+    return {code: dict(zones) for code, zones in breakdown.items()}
+
+
+def _collect_zone_codes(corridors: List[dict]) -> List[str]:
+    """Distinct zones that appear in any corridor endpoint."""
+    seen = set()
+    for c in corridors:
+        seen.add(c["zone_from"])
+        seen.add(c["zone_to"])
+    return sorted(seen)
 
 
 def _compute_avg_commute_distance(corridors: List[dict]) -> float:
@@ -566,3 +804,11 @@ def _compute_avg_commute_distance(corridors: List[dict]) -> float:
         return 20.0  # Default 20 km for KL
     total = sum(c["distance_km"] for c in corridors)
     return total / len(corridors)
+
+
+def _compute_avg_corridor_distance(corridors: List[dict]) -> float:
+    """Compute average individual corridor segment distance."""
+    if not corridors:
+        return 12.0
+    distances = [c["distance_km"] for c in corridors]
+    return sum(distances) / len(distances)

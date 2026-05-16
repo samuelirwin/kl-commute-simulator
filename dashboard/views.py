@@ -49,6 +49,12 @@ def run_simulation(request):
         wfh_sector_cap_pct=form.cleaned_data.get("wfh_sector_cap_pct", 40),
         carpool_max_detour_km=form.cleaned_data.get("carpool_max_detour_km", 5.0),
         transit_frequency_boost_pct=form.cleaned_data.get("transit_frequency_boost_pct", 20),
+        workforce_multiplier=form.cleaned_data.get("workforce_multiplier", 1.0),
+        car_mode_share_pct=form.cleaned_data.get("car_mode_share_pct", 67.0),
+        motorcycle_mode_share_pct=form.cleaned_data.get("motorcycle_mode_share_pct", 17.0),
+        public_transit_share_pct=form.cleaned_data.get("public_transit_share_pct", 12.0),
+        carpool_willingness_pct=form.cleaned_data.get("carpool_willingness_pct", 35),
+        wfh_eligibility_pct=form.cleaned_data.get("wfh_eligibility_pct", 80),
     )
     logger.info("Created simulation run id=%d name='%s'", run.id, run.name)
 

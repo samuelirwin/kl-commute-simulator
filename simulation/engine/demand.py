@@ -70,7 +70,7 @@ def generate_demand_profile(
     # Round to integers while preserving total
     result = _round_preserving_total(demand, total_demand)
 
-    logger.info(
+    logger.debug(
         "Demand profile generated: mean=%.2fh, std=%.2fh, total=%d, "
         "peak_slot=%.2fh with %d trips, non-zero_slots=%d",
         mean_hour,
@@ -88,13 +88,15 @@ def generate_aggregate_profile(
     time_slots: List[float],
     companies: List[dict],
     departure_offset_hours: float = 0.75,
+    include_return: bool = True,
 ) -> np.ndarray:
     """
     Generate aggregate demand by summing Gaussian profiles for all companies.
 
     Each company's mean departure time is computed as
     (start_hour - departure_offset_hours), since staff typically depart
-    before their office start time.
+    before their office start time. If include_return is True, an afternoon
+    return trip is also generated centered around (start_hour + work_hours).
 
     Args:
         time_slots: List of float hours for each time interval.
@@ -102,6 +104,7 @@ def generate_aggregate_profile(
             Optional key: std_dev (default 0.5).
         departure_offset_hours: How far before start_hour the average
             departure occurs. Default 0.75 (45 min).
+        include_return: Whether to add afternoon return trip demand.
 
     Returns:
         numpy array of aggregate demand per time slot.
@@ -113,14 +116,25 @@ def generate_aggregate_profile(
         std_dev = company.get("std_dev", 0.5)
         total = company["total_staff"]
 
+        # Morning outbound trip
         profile = generate_demand_profile(time_slots, mean_hour, std_dev, total)
         aggregate += profile
 
+        # Afternoon return trip (~8.5 hours after start, slightly wider spread)
+        if include_return:
+            return_mean = company["start_hour"] + 8.5
+            return_std = std_dev * 1.3  # Return trips are more spread out
+            return_profile = generate_demand_profile(
+                time_slots, return_mean, return_std, total
+            )
+            aggregate += return_profile
+
         logger.debug(
-            "Added demand for %s: %d staff, departure_mean=%.2fh",
+            "Added demand for %s: %d staff, departure_mean=%.2fh, return_mean=%.2fh",
             company["code"],
             total,
             mean_hour,
+            company["start_hour"] + 8.5 if include_return else 0,
         )
 
     logger.info(

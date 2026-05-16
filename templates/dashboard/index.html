@@ -68,9 +68,47 @@
         {{ form.transit_frequency_boost_pct }}
         {% if form.transit_frequency_boost_pct.errors %}<div class="form-error visible">{{ form.transit_frequency_boost_pct.errors.0 }}</div>{% endif %}
       </div>
-      <div class="form-group" style="padding-top: 16px;">
-        <!-- Spacer for alignment -->
+      <div class="form-group">
+        <label for="id_workforce_multiplier">Workforce Scale</label>
+        {{ form.workforce_multiplier }}
+        <div style="font-size:9px;color:var(--muted);margin-top:2px">1.0 = as defined (38K), 2.0 = double</div>
+        {% if form.workforce_multiplier.errors %}<div class="form-error visible">{{ form.workforce_multiplier.errors.0 }}</div>{% endif %}
       </div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin:12px 0;padding-top:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:8px">Traffic & Modal Split</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_car_mode_share_pct">Car Mode Share (%)</label>
+        {{ form.car_mode_share_pct }}
+        {% if form.car_mode_share_pct.errors %}<div class="form-error visible">{{ form.car_mode_share_pct.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_motorcycle_mode_share_pct">Motorcycle Share (%)</label>
+        {{ form.motorcycle_mode_share_pct }}
+        {% if form.motorcycle_mode_share_pct.errors %}<div class="form-error visible">{{ form.motorcycle_mode_share_pct.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_public_transit_share_pct">Public Transit (%)</label>
+        {{ form.public_transit_share_pct }}
+        {% if form.public_transit_share_pct.errors %}<div class="form-error visible">{{ form.public_transit_share_pct.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_carpool_willingness_pct">Carpool Willingness (%)</label>
+        {{ form.carpool_willingness_pct }}
+        {% if form.carpool_willingness_pct.errors %}<div class="form-error visible">{{ form.carpool_willingness_pct.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_wfh_eligibility_pct">WFH Eligibility (%)</label>
+        {{ form.wfh_eligibility_pct }}
+        {% if form.wfh_eligibility_pct.errors %}<div class="form-error visible">{{ form.wfh_eligibility_pct.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group" style="padding-top:16px"></div>
     </div>
     <div style="margin-bottom: 12px;">
       <div class="form-check">
@@ -222,10 +260,10 @@
     </div>
   </div>
 
-  <!-- Carpool Groups -->
+  <!-- Carpool Overview -->
   <div class="feature-panel">
     <div class="panel-header">
-      <div class="panel-title">&#x1F697; Carpool <span>Groups</span></div>
+      <div class="panel-title">&#x1F697; Carpool <span>Impact</span></div>
     </div>
     <div class="carpool-list" id="carpoolList">
       <div class="empty-state">Loading carpool data...</div>
@@ -235,7 +273,7 @@
   <!-- WFH Calendar + Transit -->
   <div class="feature-panel">
     <div class="panel-header">
-      <div class="panel-title">&#x1F3E0; WFH <span>& Transit</span></div>
+      <div class="panel-title">&#x1F3E0; WFH <span>Rotation & Eligibility</span></div>
     </div>
     <div class="wfh-calendar" id="wfhCalendar">
       <div class="empty-state">Loading WFH data...</div>
@@ -310,9 +348,9 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/map.js' %}"></script>
-<script src="{% static 'js/charts.js' %}"></script>
-<script src="{% static 'js/simulation.js' %}"></script>
+<script src="{% static 'js/map.js' %}?v={% now "U" %}"></script>
+<script src="{% static 'js/charts.js' %}?v={% now "U" %}"></script>
+<script src="{% static 'js/simulation.js' %}?v={% now "U" %}"></script>
 <script>
 // Toggle simulation parameter form panel
 function toggleSimForm() {
